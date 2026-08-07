@@ -114,10 +114,30 @@ single flat row it has always been.
 Sizing is by input device (`pointer: coarse`) rather than by viewport, so a
 1024px tablet gets the same targets a phone does and a narrow desktop window
 does not. Fields go to 16px there, which is the threshold below which iOS
-Safari zooms the page on focus and never zooms back out. `e2e/mobile.spec.ts`
-drives the whole thing at 390×844 with touch input and asserts the properties
-that actually matter: nothing overflows sideways in any pane, nothing is too
-small to hit, and both the pen tool and block dragging work from a finger.
+Safari zooms the page on focus and never zooms back out.
+
+**A symbol row sits between the editor and the keyboard.** Every character a
+Strudel pattern is made of — `"`, `(`, `*`, `~`, `<`, `@` — is behind a layout
+switch on a phone keyboard, so `s("bd*4, hh*8").gain(0.8)` costs eight round
+trips to the symbol page and back. The row carries the ones that are not on the
+letter page, in roughly the order a pattern needs them, plus the button that
+plays what you just wrote. Brackets insert as pairs with the caret between
+them and `→` steps over the closer, because a phone has no arrow keys and
+placing a caret by tapping at it is a coin toss.
+
+Two things follow the finger rather than the viewport. Arrangement bars go from
+26px to 44px, because a fingertip covers three of the narrow ones — the number
+lives in `ArrangementView` rather than the stylesheet, since a tap resolves to a
+bar by dividing by it. And `--keyboard` carries how much of the screen the
+on-screen keyboard is covering: Android shrinks the layout viewport itself, but
+iOS Safari shrinks only the visual one, which would leave the symbol row and
+the pane switcher underneath the keyboard exactly when they are wanted.
+
+`e2e/mobile.spec.ts` drives all of it at 390×844 with touch input and asserts
+the properties that actually matter: nothing overflows sideways in any pane,
+nothing is too small to hit, the pen tool and block dragging work from a
+finger, and a whole pattern can be typed without ever leaving the letter
+keyboard.
 
 ## The project file
 

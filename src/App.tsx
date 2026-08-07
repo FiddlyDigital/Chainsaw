@@ -11,10 +11,12 @@ import { GridView } from './ui/GridView'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { TransportBar } from './ui/TransportBar'
 import { useAutosave, useEngineSync, useShortcuts } from './ui/useAppEffects'
+import { useKeyboardInset } from './ui/viewport'
 
 export default function App() {
   useEngineSync()
   useAutosave()
+  useKeyboardInset()
 
   const load = useProject((state) => state.load)
   const markSaved = useProject((state) => state.markSaved)
@@ -25,6 +27,10 @@ export default function App() {
   const editing = useRuntime((state) => state.editing)
   const editingChain = useRuntime((state) => state.editingChain)
   const audioReady = useRuntime((state) => state.status.audioReady)
+  // The pane switcher hides two thirds of the app at a time, so it carries the
+  // two things you would otherwise have to go and look for.
+  const live = useRuntime((state) => Object.keys(state.overrides).length > 0)
+  const failing = useRuntime((state) => Object.keys(state.status.errors).length > 0)
 
   const handle = useRef<FileSystemFileHandle | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -127,9 +133,11 @@ export default function App() {
         </button>
         <button className={pane === 'stage' ? 'on' : ''} onClick={() => setPane('stage')} aria-current={pane === 'stage'}>
           {panel}
+          {live && <span className="pane-mark live" title="A scene is overriding the arrangement" />}
         </button>
         <button className={pane === 'editor' ? 'on' : ''} onClick={() => setPane('editor')} aria-current={pane === 'editor'}>
           {editing ? `slot ${editing}` : 'scratch'}
+          {failing && <span className="pane-mark bad" title="A pattern failed to compile" />}
         </button>
       </nav>
 
