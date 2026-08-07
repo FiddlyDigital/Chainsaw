@@ -1,9 +1,13 @@
 import { useState } from 'react'
+import { midiSupported } from '../audio/midiAccess'
 import { QUANTIZE_OPTIONS, type Quantize } from '../model/types'
 import { SOURCE_URL, LICENSE } from '../source'
 import { CommittedInput } from './CommittedInput'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
+
+/** Sentinel option value: choosing it asks for MIDI access rather than a port. */
+const ENABLE = '__enable__'
 
 export interface TransportBarProps {
   onSave: () => void
@@ -39,6 +43,10 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
   const activeScene = useRuntime((state) => state.activeScene)
   const overrides = useRuntime((state) => state.overrides)
   const returnToArrangement = useRuntime((state) => state.returnToArrangement)
+  const midiOutputs = useRuntime((state) => state.midiOutputs)
+  const midiOutputId = useRuntime((state) => state.midiOutputId)
+  const enableMidi = useRuntime((state) => state.enableMidi)
+  const setMidiOutput = useRuntime((state) => state.setMidiOutput)
   const scratchMode = useRuntime((state) => state.scratchMode)
   const scratchLive = useRuntime((state) => state.scratchLive)
   const setScratchMode = useRuntime((state) => state.setScratchMode)
@@ -156,6 +164,32 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
             ))}
           </select>
         </label>
+
+        {/*
+         * MIDI access prompts the user, so it is not requested on load — the
+         * list stays empty until someone shows interest by opening this.
+         */}
+        {midiSupported() && (
+          <label className="field">
+            <span>midi</span>
+            <select
+              value={midiOutputId ?? ''}
+              onChange={(event) => {
+                if (event.target.value === ENABLE) void enableMidi()
+                else setMidiOutput(event.target.value || null)
+              }}
+              title="Send MIDI clock, start/stop and song position to this output"
+            >
+              <option value="">off</option>
+              {midiOutputs.map((output) => (
+                <option key={output.id} value={output.id}>
+                  {output.name}
+                </option>
+              ))}
+              {midiOutputs.length === 0 && <option value={ENABLE}>enable…</option>}
+            </select>
+          </label>
+        )}
 
         <label className="field volume">
           <span>vol</span>

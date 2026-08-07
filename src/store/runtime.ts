@@ -6,6 +6,8 @@
  */
 import { create } from 'zustand'
 import { Engine, type EngineStatus, type ScratchMode } from '../audio/engine'
+import type { MidiOutputPort } from '../audio/midi'
+import { midiOutput, midiOutputs, midiSupported, onMidiPortsChanged, requestMidiAccess } from '../audio/midiAccess'
 import type { LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
@@ -40,6 +42,11 @@ export interface RuntimeStore {
   scratchLive: boolean
   masterVolume: number
 
+  /** MIDI outputs we can send clock to. Empty until access has been granted. */
+  midiOutputs: MidiOutputPort[]
+  /** The output receiving clock, or null for none. */
+  midiOutputId: string | null
+
   setPanel: (panel: Panel) => void
   setPane: (pane: Pane) => void
   setEditing: (slot: string | null) => void
@@ -62,6 +69,11 @@ export interface RuntimeStore {
   /** Drop the scratch pattern entirely. The code in the editor is untouched. */
   clearScratch: () => void
   scratchError: string | null
+
+  /** Prompt for MIDI access and populate the output list. Safe to call twice. */
+  enableMidi: () => Promise<boolean>
+  /** Point the clock at an output, or null to stop sending. */
+  setMidiOutput: (id: string | null) => void
 }
 
 let engine: Engine | undefined
@@ -94,6 +106,8 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   scratchLive: false,
   masterVolume: 0.8,
   scratchError: null,
+  midiOutputs: [],
+  midiOutputId: null,
 
   setPanel: (panel) => set({ panel, pane: 'stage' }),
   setPane: (pane) => set({ pane }),
@@ -175,6 +189,27 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   clearScratch() {
     set({ scratchLive: false })
     getEngine().clearScratch()
+  },
+
+  async enableMidi() {
+    if (!midiSupported()) return false
+    if (!(await requestMidiAccess())) return false
+    const refresh = () => {
+      const outputs = midiOutputs()
+      set({ midiOutputs: outputs })
+      // A device pulled out mid-set takes the clock with it rather than
+      // leaving the transport pointed at a port that no longer exists.
+      const chosen = get().midiOutputId
+      if (chosen && !outputs.some((output) => output.id === chosen)) get().setMidiOutput(null)
+    }
+    refresh()
+    onMidiPortsChanged(refresh)
+    return true
+  },
+
+  setMidiOutput(midiOutputId) {
+    set({ midiOutputId })
+    getEngine().midi.setPort(midiOutput(midiOutputId))
   },
 }))
 

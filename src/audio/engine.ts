@@ -15,6 +15,7 @@ import { Cyclist, stack } from '@strudel/core'
 import { getAudioContext, initAudio, webaudioOutput } from '@strudel/webaudio'
 import type { Project, Quantize, TrackSettings } from '../model/types'
 import { PatternError, compile, compileSlot, initPatternScope } from './compile'
+import { MidiClock } from './midi'
 import { type Piece, type StrudelPattern, pieces, silence, timelinePattern } from './patterns'
 import { type LiveOverride, resolveTracks } from './timeline'
 import { cpsFor, nextBoundary } from './timing'
@@ -96,6 +97,15 @@ export class Engine {
   /** The scratch pad's pattern, mixed in per `scratchMode`. Not part of the project. */
   private scratch: StrudelPattern | null = null
   private scratchMode: ScratchMode = 'stack'
+  /**
+   * MIDI clock out. It reads the transport rather than being pushed at, so it
+   * cannot drift out of step with the scheduler between transport events.
+   */
+  readonly midi = new MidiClock(() => ({
+    cycle: this.now(),
+    cps: this.project ? cpsFor(this.project.meta) : 0,
+    cyclesPerBar: this.project?.meta.cyclesPerBar ?? 1,
+  }))
 
   constructor(private readonly onStatus: (status: EngineStatus) => void) {
     this.scheduler = new Cyclist({
@@ -201,16 +211,19 @@ export class Engine {
     this.scheduler.setCps(cpsFor(this.project.meta))
     await this.scheduler.start()
     this.watch()
+    this.midi.start()
   }
 
   pause(): void {
     this.scheduler.pause()
     this.unwatch()
+    this.midi.stop()
   }
 
   stop(): void {
     this.scheduler.stop()
     this.unwatch()
+    this.midi.stop()
     // A fresh start begins at cycle 0, so the queued history is meaningless.
     this.timeline = this.timeline.length ? [{ from: 0, pattern: this.timeline[this.timeline.length - 1].pattern }] : []
     void this.scheduler.setPattern(pieces(this.timeline), false)
@@ -220,6 +233,7 @@ export class Engine {
   dispose(): void {
     this.unwatch()
     this.scheduler.stop()
+    this.midi.dispose()
   }
 
   /**
