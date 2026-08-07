@@ -53,7 +53,20 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 1200,
+    /**
+     * The main chunk is ~1.35 MB raw, ~435 kB gzipped, and almost all of that
+     * is Strudel and superdough. It is not split because it is not deferrable:
+     * the scheduler is constructed before anything can play, so a lazy chunk
+     * would only move the wait to the first press of play — and the app is a
+     * PWA that precaches the lot at install anyway, so after the first visit
+     * nothing is fetched at all.
+     *
+     * The limit sits just above the real figure rather than below it, so the
+     * warning means "this grew" instead of firing on every single build and
+     * being ignored. The synthesised kit is already a separate chunk, loaded
+     * when audio starts.
+     */
+    chunkSizeWarningLimit: 1400,
   },
   test: {
     environment: 'jsdom',
