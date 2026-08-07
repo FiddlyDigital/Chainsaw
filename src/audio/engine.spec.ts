@@ -1,5 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { audible, prune } from './engine'
+import { anySoloed, audible, prune, trackAudible } from './engine'
+
+/**
+ * The mixer. Getting solo wrong silences a set on stage, so the rules are
+ * pinned here rather than left to read off the one line that implements them.
+ */
+describe('trackAudible', () => {
+  it('plays a track nobody has touched', () => {
+    expect(trackAudible(undefined, false)).toBe(true)
+    expect(trackAudible({}, false)).toBe(true)
+  })
+
+  it('silences a muted track', () => {
+    expect(trackAudible({ muted: true }, false)).toBe(false)
+  })
+
+  it('silences everything that is not soloed, once anything is', () => {
+    expect(trackAudible(undefined, true)).toBe(false)
+    expect(trackAudible({ soloed: true }, true)).toBe(true)
+  })
+
+  it('lets mute win over solo on the same track', () => {
+    expect(trackAudible({ muted: true, soloed: true }, true)).toBe(false)
+  })
+
+  it('ignores a stale solo flag when nothing is soloing', () => {
+    // `anySoloed` is what decides; a lone flag cannot mute the rest by itself.
+    expect(trackAudible({ soloed: true }, false)).toBe(true)
+  })
+})
+
+describe('anySoloed', () => {
+  it('is false for a project with no mixer state at all', () => {
+    expect(anySoloed(undefined)).toBe(false)
+    expect(anySoloed({})).toBe(false)
+  })
+
+  it('is false when tracks are only muted', () => {
+    expect(anySoloed({ '1': { muted: true }, '2': { muted: true } })).toBe(false)
+  })
+
+  it('is true as soon as one track is soloed', () => {
+    expect(anySoloed({ '1': { muted: true }, '3': { soloed: true } })).toBe(true)
+  })
+})
 
 /**
  * What the scratch pad contributes to the mix. The scratch pattern plays

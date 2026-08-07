@@ -451,6 +451,7 @@ code {
   text-align: center;
   border-bottom: 1px solid var(--line);
   padding-bottom: 3px;
+  white-space: nowrap;
   /* Which track a column is stays visible however far down the scenes go. */
   position: sticky;
   top: 0;
@@ -485,6 +486,51 @@ code {
 .scene-trigger {
   color: var(--dim);
   padding: 1px 6px;
+}
+
+.scene-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+}
+
+/* ── track mixer ───────────────────────────────────────────── */
+
+.track-mix {
+  display: inline-flex;
+  gap: 1px;
+  vertical-align: middle;
+}
+
+.track-number {
+  margin-right: 4px;
+}
+
+button.mini.mix {
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  color: var(--faint);
+}
+
+button.mini.mix:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+/* Red for gone, amber for solo — the colours a mixer already uses. */
+button.mini.mix.muted {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+button.mini.mix.soloed {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-2) 12%, transparent);
 }
 
 .scene-trigger.playing {
@@ -591,12 +637,34 @@ code {
 .palette-label {
   color: var(--faint);
   font-size: 11px;
-  /* Stays put while the chips scroll past it. */
-  position: sticky;
-  left: 0;
-  background: var(--bg);
-  padding-right: 4px;
-  z-index: 1;
+  flex-shrink: 0;
+}
+
+/* The scrolling middle; the label and the zoom either side of it do not. */
+.palette-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.palette-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.palette-chips > * {
+  flex-shrink: 0;
+}
+
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
 }
 
 .palette-label.armed {
@@ -652,6 +720,10 @@ code {
   color: var(--accent);
   font-style: normal;
   font-size: 9px;
+}
+
+.row-label .track-mix {
+  margin-left: auto;
 }
 
 .ruler-bars {
@@ -997,6 +1069,14 @@ code {
     line-height: 1;
   }
 
+  /* Two of these sit beside every track number, so they get the floor rather
+     than the full target size the rest of the mini buttons take. */
+  button.mini.mix {
+    padding: 4px 5px;
+    min-width: 24px;
+    min-height: 28px;
+  }
+
   .source-link {
     padding: 8px 2px;
   }
@@ -1028,13 +1108,16 @@ code {
   }
 
   input[type='checkbox'] {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
+  /* The label is the target — the text toggles it too — so it is the label
+     that has to be big enough to hit, not the box. */
   .check {
     gap: 6px;
-    padding: 4px 0;
+    padding: 5px 2px;
+    min-height: 32px;
   }
 
   .field.volume input {
@@ -1216,19 +1299,33 @@ code {
     min-width: 26px;
   }
 
+  /*
+   * Reorder and delete drop under the name rather than widening the sticky
+   * column, which is the one place on this screen there is no width to give.
+   * The minimum is what keeps the launch button and the name on one line
+   * together: a wrapping flex box in a table cell is sized from its widest
+   * item, not its widest line, so without it all three end up stacked.
+   */
+  .grid tbody .scene-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-width: 98px;
+  }
+
+  .scene-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+
   .cell {
     width: 92px;
   }
 
-  /* One scrolling row of chains rather than four wrapped ones. */
+  /* One row of chains rather than four wrapped ones; `.palette-chips` is
+     already the part that scrolls. */
   .palette {
     flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-  }
-
-  .palette > * {
-    flex: 0 0 auto;
   }
 
   .chain-editor {

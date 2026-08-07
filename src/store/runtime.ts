@@ -6,7 +6,9 @@
  */
 import { create } from 'zustand'
 import { Engine, type EngineStatus, type ScratchMode } from '../audio/engine'
-import type { LiveOverride } from '../audio/timeline'
+import type { MidiOutputPort } from '../audio/midi'
+import { midiOutput, midiOutputs, midiSupported, onMidiPortsChanged, requestMidiAccess } from '../audio/midiAccess'
+import { sceneCycles, type LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
 
@@ -26,9 +28,25 @@ export interface RuntimeStore {
   overrides: Record<number, LiveOverride>
   /** Name of the scene triggered whole, when the overrides still match it. */
   activeScene: string | null
+  /** Index of that scene, which is what auto-advance steps along. */
+  activeSceneIndex: number | null
+  /**
+   * Absolute cycle at which the active scene has played through, or null when
+   * nothing is due to follow it — no scene, an empty one, or the end of the
+   * list. Auto-advance watches this and nothing else.
+   */
+  sceneEndsAt: number | null
+  /** Fire the next scene when this one has played through. */
+  autoAdvance: boolean
   panel: Panel
   /** Which single column is shown on a narrow screen. */
   pane: Pane
+  /**
+   * Bar width in the arrangement, in pixels, or null to follow the pointer
+   * type. View state rather than document state: how far you happen to be
+   * zoomed in is not part of the song.
+   */
+  arrangementBarWidth: number | null
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
   /** Chain currently open in the chain editor. */
@@ -40,8 +58,14 @@ export interface RuntimeStore {
   scratchLive: boolean
   masterVolume: number
 
+  /** MIDI outputs we can send clock to. Empty until access has been granted. */
+  midiOutputs: MidiOutputPort[]
+  /** The output receiving clock, or null for none. */
+  midiOutputId: string | null
+
   setPanel: (panel: Panel) => void
   setPane: (pane: Pane) => void
+  setArrangementBarWidth: (px: number | null) => void
   setEditing: (slot: string | null) => void
   setEditingChain: (chain: string | null) => void
   setScratch: (code: string) => void
@@ -52,6 +76,9 @@ export interface RuntimeStore {
   stop: () => void
 
   triggerScene: (index: number) => void
+  setAutoAdvance: (on: boolean) => void
+  /** Step to the next scene. A no-op at the end of the list, which holds. */
+  advanceScene: () => void
   triggerCell: (track: number, ref: string) => void
   clearTrack: (track: number) => void
   returnToArrangement: () => void
@@ -62,6 +89,11 @@ export interface RuntimeStore {
   /** Drop the scratch pattern entirely. The code in the editor is untouched. */
   clearScratch: () => void
   scratchError: string | null
+
+  /** Prompt for MIDI access and populate the output list. Safe to call twice. */
+  enableMidi: () => Promise<boolean>
+  /** Point the clock at an output, or null to stop sending. */
+  setMidiOutput: (id: string | null) => void
 }
 
 let engine: Engine | undefined
@@ -85,8 +117,12 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
   overrides: {},
   activeScene: null,
+  activeSceneIndex: null,
+  sceneEndsAt: null,
+  autoAdvance: false,
   panel: 'grid',
   pane: 'stage',
+  arrangementBarWidth: null,
   editing: null,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
@@ -94,9 +130,12 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   scratchLive: false,
   masterVolume: 0.8,
   scratchError: null,
+  midiOutputs: [],
+  midiOutputId: null,
 
   setPanel: (panel) => set({ panel, pane: 'stage' }),
   setPane: (pane) => set({ pane }),
+  setArrangementBarWidth: (arrangementBarWidth) => set({ arrangementBarWidth }),
   // Opening something for editing brings its editor on screen. On a wide
   // layout the pane is inert and this changes nothing; on a narrow one it is
   // the difference between tapping a slot and appearing to do nothing.
@@ -130,7 +169,28 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     for (const [track, ref] of Object.entries(scene.cells)) {
       overrides[Number(track)] = { ref, startCycle: at }
     }
+    // A scene with no length has nothing to wait for, so it holds rather than
+    // advancing straight past itself.
+    const length = sceneCycles(project, scene)
+    set({ activeSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
     commit(set, overrides, scene.name)
+  },
+
+  setAutoAdvance(autoAdvance) {
+    set({ autoAdvance })
+  },
+
+  advanceScene() {
+    const index = get().activeSceneIndex
+    if (index === null) return
+    const scenes = useProject.getState().project.grid.scenes
+    if (index + 1 >= scenes.length) {
+      // End of the list: hold the last scene and stop looking. Triggering
+      // anything by hand starts the follow off again.
+      set({ sceneEndsAt: null })
+      return
+    }
+    get().triggerScene(index + 1)
   },
 
   triggerCell(track, ref) {
@@ -176,6 +236,27 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     set({ scratchLive: false })
     getEngine().clearScratch()
   },
+
+  async enableMidi() {
+    if (!midiSupported()) return false
+    if (!(await requestMidiAccess())) return false
+    const refresh = () => {
+      const outputs = midiOutputs()
+      set({ midiOutputs: outputs })
+      // A device pulled out mid-set takes the clock with it rather than
+      // leaving the transport pointed at a port that no longer exists.
+      const chosen = get().midiOutputId
+      if (chosen && !outputs.some((output) => output.id === chosen)) get().setMidiOutput(null)
+    }
+    refresh()
+    onMidiPortsChanged(refresh)
+    return true
+  },
+
+  setMidiOutput(midiOutputId) {
+    set({ midiOutputId })
+    getEngine().midi.setPort(midiOutput(midiOutputId))
+  },
 }))
 
 function quantizeOf(project: Project): Quantize {
@@ -187,7 +268,10 @@ function commit(
   overrides: Record<number, LiveOverride>,
   activeScene: string | null,
 ) {
-  set({ overrides, activeScene })
+  // Anything that is not a whole scene breaks the follow — a single cell, a
+  // track handed back, a return to the arrangement. There is no longer a scene
+  // playing, so there is nothing to advance from.
+  set(activeScene === null ? { overrides, activeScene, activeSceneIndex: null, sceneEndsAt: null } : { overrides, activeScene })
   void getEngine().setOverrides(overrides)
   const cells: Record<string, string> = {}
   for (const [track, override] of Object.entries(overrides)) cells[track] = override.ref

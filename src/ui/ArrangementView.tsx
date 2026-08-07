@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { chainTimeline, songCycles } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
+import { TrackMix } from './TrackMix'
 import { useCoarsePointer } from './viewport'
 
 /**
@@ -10,10 +11,31 @@ import { useCoarsePointer } from './viewport'
  * A tap resolves to a bar by dividing its x-coordinate by the first of these,
  * so both live here rather than in the stylesheet, which reads them back as
  * custom properties. A mouse can hit a 26px bar; a fingertip covers three of
- * them, hence the wider one.
+ * them, hence the wider default.
  */
 const BARS = { fine: 26, coarse: 44 }
-const LABEL_WIDTH = 64
+/** Wide enough for the track number, its live marker and its mute/solo. */
+const LABEL_WIDTH = 92
+
+/**
+ * The widths zoom steps through.
+ *
+ * Discrete rather than a continuous factor: a button press should land
+ * somewhere predictable, and repeated multiplication drifts into fractional
+ * pixels that make the ruler and the blocks disagree about where a bar is.
+ * The two defaults are both in the list, so the first press from either moves
+ * exactly one step.
+ */
+const ZOOM_STEPS = [8, 12, 17, 26, 34, 44, 60, 82, 112]
+
+/** The step nearest a width, so a zoom from either default lands cleanly. */
+function stepIndex(width: number): number {
+  let best = 0
+  for (let i = 1; i < ZOOM_STEPS.length; i += 1) {
+    if (Math.abs(ZOOM_STEPS[i] - width) < Math.abs(ZOOM_STEPS[best] - width)) best = i
+  }
+  return best
+}
 
 interface Drag {
   track: number
@@ -48,7 +70,13 @@ export function ArrangementView() {
   const overrides = useRuntime((state) => state.overrides)
   const setEditingChain = useRuntime((state) => state.setEditingChain)
 
-  const BAR_WIDTH = useCoarsePointer() ? BARS.coarse : BARS.fine
+  const storedBarWidth = useRuntime((state) => state.arrangementBarWidth)
+  const setBarWidth = useRuntime((state) => state.setArrangementBarWidth)
+  const coarse = useCoarsePointer()
+  const BAR_WIDTH = storedBarWidth ?? (coarse ? BARS.coarse : BARS.fine)
+
+  const zoomIndex = stepIndex(BAR_WIDTH)
+  const zoom = (direction: 1 | -1) => setBarWidth(ZOOM_STEPS[zoomIndex + direction])
 
   const [pen, setPen] = useState<string | null>(null)
   // A drag is previewed locally and written to the document once, on release.
@@ -113,22 +141,39 @@ export function ArrangementView() {
   return (
     <div className="arrangement">
       <div className="palette">
-        {/* Doubles as the pen's status line. On a narrow screen the palette is
-            one scrolling row, and a hint tacked on the end of it would be off
-            the side of the screen exactly when it is needed. */}
+        {/* Doubles as the pen's status line, rather than a separate hint that
+            would be off the side of a narrow screen exactly when it matters. */}
         <span className={`palette-label ${pen ? 'armed' : ''}`}>{pen ? <>place “{pen}” on a track</> : 'chains'}</span>
-        {Object.entries(project.chains).map(([id, chain]) => (
-          <button
-            key={id}
-            className={`chip ${pen === id ? 'on' : ''}`}
-            onClick={() => setPen(pen === id ? null : id)}
-            title={`Track ${chain.track}, ${chainTimeline(project, id).loop} cycles. Select, then click a track row to place.`}
-          >
-            {id}
-            <em>t{chain.track}</em>
+        {/* Only the chips scroll, so the pen's status line and the zoom stay
+            put on a narrow screen instead of sliding off the ends. */}
+        <div className="palette-chips">
+          {Object.entries(project.chains).map(([id, chain]) => (
+            <button
+              key={id}
+              className={`chip ${pen === id ? 'on' : ''}`}
+              onClick={() => setPen(pen === id ? null : id)}
+              title={`Track ${chain.track}, ${chainTimeline(project, id).loop} cycles. Select, then click a track row to place.`}
+            >
+              {id}
+              <em>t{chain.track}</em>
+            </button>
+          ))}
+          {Object.keys(project.chains).length === 0 && <span className="hint">no chains yet — make one in the panel</span>}
+        </div>
+        <span className="zoom">
+          <button className="mini" onClick={() => zoom(-1)} disabled={zoomIndex === 0} aria-label="Zoom out" title="Zoom out">
+            −
           </button>
-        ))}
-        {Object.keys(project.chains).length === 0 && <span className="hint">no chains yet — make one in the panel</span>}
+          <button
+            className="mini"
+            onClick={() => zoom(1)}
+            disabled={zoomIndex === ZOOM_STEPS.length - 1}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            +
+          </button>
+        </span>
       </div>
 
       <div className="timeline-scroll">
@@ -154,6 +199,7 @@ export function ArrangementView() {
                 <div className="row-label">
                   {track}
                   {overrides[track] && <em title="A live scene is overriding this track">live</em>}
+                  <TrackMix track={track} />
                 </div>
                 <div
                   className="lane"

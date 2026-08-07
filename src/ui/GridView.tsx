@@ -3,6 +3,7 @@ import { refTimeline } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
 import { CommittedInput } from './CommittedInput'
+import { TrackMix } from './TrackMix'
 
 /**
  * Session view (PRD §8.5): columns are tracks, rows are scenes, Ableton's way
@@ -15,11 +16,14 @@ export function GridView() {
   const addScene = useProject((state) => state.addScene)
   const removeScene = useProject((state) => state.removeScene)
   const renameScene = useProject((state) => state.renameScene)
+  const moveScene = useProject((state) => state.moveScene)
   const setCell = useProject((state) => state.setCell)
 
   const overrides = useRuntime((state) => state.overrides)
   const activeScene = useRuntime((state) => state.activeScene)
   const triggerScene = useRuntime((state) => state.triggerScene)
+  const autoAdvance = useRuntime((state) => state.autoAdvance)
+  const setAutoAdvance = useRuntime((state) => state.setAutoAdvance)
   const triggerCell = useRuntime((state) => state.triggerCell)
   const clearTrack = useRuntime((state) => state.clearTrack)
   const setEditing = useRuntime((state) => state.setEditing)
@@ -51,12 +55,19 @@ export function GridView() {
               <th className="scene-head">scenes</th>
               {tracks.map((track) => (
                 <th key={track} className="track-head">
-                  <span>{track}</span>
-                  {overrides[track] && (
-                    <button className="mini" onClick={() => clearTrack(track)} title="Hand this track back to the arrangement">
-                      ×
-                    </button>
-                  )}
+                  <span className="track-number">
+                    {track}
+                    {overrides[track] && (
+                      <button
+                        className="mini"
+                        onClick={() => clearTrack(track)}
+                        title="Hand this track back to the arrangement"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                  <TrackMix track={track} />
                 </th>
               ))}
             </tr>
@@ -77,9 +88,31 @@ export function GridView() {
                     onCommit={(name) => renameScene(index, name)}
                     ariaLabel={`Scene ${index + 1} name`}
                   />
-                  <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
-                    ×
-                  </button>
+                  {/* Grouped so a narrow screen can drop them onto a second
+                      line rather than widening the sticky column. */}
+                  <span className="scene-actions">
+                    <button
+                      className="mini"
+                      onClick={() => moveScene(index, index - 1)}
+                      disabled={index === 0}
+                      aria-label={`Move scene ${scene.name} up`}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="mini"
+                      onClick={() => moveScene(index, index + 1)}
+                      disabled={index === project.grid.scenes.length - 1}
+                      aria-label={`Move scene ${scene.name} down`}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
+                    <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
+                      ×
+                    </button>
+                  </span>
                 </th>
                 {tracks.map((track) => {
                   const ref = scene.cells[String(track)]
@@ -123,6 +156,10 @@ export function GridView() {
       </div>
       <div className="grid-actions">
         <button onClick={() => addScene(nextSceneName(project.grid.scenes.map((scene) => scene.name)))}>+ scene</button>
+        <label className="check" title="When a scene has played through, fire the next one. The last scene holds.">
+          <input type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
+          follow
+        </label>
         <span className="hint keys">
           click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc returns to the
           arrangement

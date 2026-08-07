@@ -174,6 +174,152 @@ test('the scratch pad plays alongside the tracks, and can be muted or soloed', a
   expect(problems).toEqual([])
 })
 
+test('tracks can be muted and soloed, and it survives a save', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+  await page.getByRole('button', { name: 'Play' }).click()
+
+  const head = page.locator('.grid thead .track-head')
+  await head.nth(0).getByRole('button', { name: 'Mute track 1' }).click()
+  await expect(head.nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+
+  // Soloing another track is a separate state; the mute stays put.
+  await head.nth(2).getByRole('button', { name: 'Solo track 3' }).click()
+  await expect(head.nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
+  await expect(head.nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+
+  // The arrangement lists the same tracks and shows the same state.
+  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
+  await expect(page.locator('.track-row').nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+  await expect(page.locator('.track-row').nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
+
+  // None of it stopped the transport.
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+
+  // It is document state, not runtime state, so it is in what gets persisted.
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('chainsaw.autosave.v1') ?? '{}').tracks), {
+      timeout: 5_000,
+    })
+    .toEqual({ '1': { muted: true }, '3': { soloed: true } })
+
+  expect(problems).toEqual([])
+})
+
+test('scenes can be reordered', async ({ page }) => {
+  await page.goto('.')
+  const names = () => page.locator('.grid tbody .scene-head input').evaluateAll((inputs) => inputs.map((i) => i.value))
+
+  expect(await names()).toEqual(['intro', 'drop', 'break'])
+
+  await page.getByRole('button', { name: 'Move scene break up' }).click()
+  expect(await names()).toEqual(['intro', 'break', 'drop'])
+
+  await page.getByRole('button', { name: 'Move scene intro down' }).click()
+  expect(await names()).toEqual(['break', 'intro', 'drop'])
+
+  // The ends of the list offer nothing to press.
+  await expect(page.getByRole('button', { name: 'Move scene break up' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Move scene drop down' })).toBeDisabled()
+
+  // A cell moved with its scene: "drop" still has its four clips.
+  const dropRow = page.locator('.grid tbody tr').nth(2)
+  await expect(dropRow.locator('.cell:not(.empty)')).toHaveCount(4)
+})
+
+test('follow walks the scene list and holds on the last', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+
+  // Shorten the bar so the whole walk takes seconds rather than a minute.
+  await page.getByLabel('bpm').fill('240')
+  await page.getByRole('checkbox', { name: 'follow' }).check()
+  await page.getByRole('button', { name: 'Play' }).click()
+
+  // Start at the top; the follow takes it from there.
+  await page.locator('.grid tbody tr').nth(0).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  await expect(page.locator('.pill.live')).toContainText('drop', { timeout: 20_000 })
+  await expect(page.locator('.pill.live')).toContainText('break', { timeout: 20_000 })
+
+  // The end of the list holds rather than looping or dropping the overrides.
+  await page.waitForTimeout(4_000)
+  await expect(page.locator('.pill.live')).toContainText('break')
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+
+  expect(problems).toEqual([])
+})
+
+test('a hand-triggered cell stops the follow', async ({ page }) => {
+  await page.goto('.')
+  await page.getByLabel('bpm').fill('240')
+  await page.getByRole('checkbox', { name: 'follow' }).check()
+  await page.getByRole('button', { name: 'Play' }).click()
+  await page.locator('.grid tbody tr').nth(0).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Firing one cell is no longer "a scene", so there is nothing to advance
+  // from and the list stops walking.
+  await page.locator('.grid tbody tr').nth(1).locator('.cell').first().click()
+  await expect(page.locator('.pill.live')).not.toContainText('intro')
+  await page.waitForTimeout(4_000)
+  await expect(page.locator('.pill.live')).not.toContainText('drop')
+})
+
+test('the arrangement zooms, and placements stay where they are', async ({ page }) => {
+  await page.goto('.')
+  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
+
+  const block = page.locator('.track-row').nth(0).locator('.block').first()
+  const width = async () => (await block.boundingBox())?.width ?? 0
+  /** A ruler tick is exactly one bar wide, so it is the honest unit. */
+  const barWidth = async () => (await page.locator('.tick').first().boundingBox())!.width
+  /** How many bars the block covers, according to the ruler beside it. */
+  const bars = async () => ((await width()) + 2) / (await barWidth())
+
+  const before = await width()
+  const length = await bars()
+  expect(length).toBeCloseTo(Math.round(length), 5)
+
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  const zoomedIn = await width()
+  expect(zoomedIn).toBeGreaterThan(before)
+
+  await page.getByRole('button', { name: 'Zoom out' }).click()
+  // Back to the same step it started on.
+  expect(await width()).toBeCloseTo(before, 0)
+
+  // Zooming all the way out still leaves the block on its own bar, and the
+  // ruler agrees with it: dropping a chain lands where it is aimed.
+  for (let i = 0; i < 10; i += 1) {
+    const out = page.getByRole('button', { name: 'Zoom out' })
+    if (await out.isDisabled()) break
+    await out.click()
+  }
+  await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+  expect(await width()).toBeLessThan(before)
+  expect((await block.boundingBox())?.x).toBeCloseTo(
+    (await page.locator('.track-row').nth(0).locator('.lane').boundingBox())!.x,
+    0,
+  )
+
+  // The block still covers the same bars it did: the ruler and the placements
+  // scaled together rather than drifting apart.
+  expect(await bars()).toBeCloseTo(length, 5)
+
+  // Placing still resolves to the bar under the pointer at this zoom.
+  const bar = await barWidth()
+  await page.locator('.chip', { hasText: 'KEYS' }).click()
+  const lane = page.locator('.track-row').nth(5).locator('.lane')
+  await lane.click({ position: { x: bar * 3 + bar / 2, y: 8 } })
+  const placed = lane.locator('.block').first()
+  await expect(placed).toBeVisible()
+  expect((await placed.boundingBox())!.x - (await lane.boundingBox())!.x).toBeCloseTo(bar * 3, 0)
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

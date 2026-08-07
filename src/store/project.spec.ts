@@ -160,6 +160,86 @@ describe('track count', () => {
   })
 })
 
+describe('scene order', () => {
+  const names = () => project().grid.scenes.map((scene) => scene.name)
+
+  beforeEach(() => {
+    store().addScene('one')
+    store().addScene('two')
+    store().addScene('three')
+  })
+
+  it('moves a scene up and down the list', () => {
+    expect(store().moveScene(2, 0)).toBe(true)
+    expect(names()).toEqual(['three', 'one', 'two'])
+    expect(store().moveScene(0, 1)).toBe(true)
+    expect(names()).toEqual(['one', 'three', 'two'])
+  })
+
+  it('carries the scene"s cells with it', () => {
+    store().createSlot('A1')
+    store().setCell(2, 1, 'A1')
+    store().moveScene(2, 0)
+    expect(project().grid.scenes[0].cells['1']).toBe('A1')
+  })
+
+  it('does nothing at the ends of the list', () => {
+    expect(store().moveScene(0, -1)).toBe(true)
+    expect(store().moveScene(2, 3)).toBe(true)
+    expect(names()).toEqual(['one', 'two', 'three'])
+  })
+
+  it('is undoable', () => {
+    store().moveScene(0, 2)
+    expect(names()).toEqual(['two', 'three', 'one'])
+    store().undo()
+    expect(names()).toEqual(['one', 'two', 'three'])
+  })
+})
+
+describe('the track mixer', () => {
+  it('records a mute and validates', () => {
+    expect(store().setTrack(2, { muted: true })).toBe(true)
+    expect(project().tracks?.['2']).toEqual({ muted: true })
+    expect(validateProject(project()).ok).toBe(true)
+  })
+
+  it('keeps the record sparse: a track back at its defaults leaves no trace', () => {
+    store().setTrack(2, { muted: true })
+    store().setTrack(2, { soloed: true })
+    expect(project().tracks?.['2']).toEqual({ muted: true, soloed: true })
+
+    store().setTrack(2, { muted: false })
+    expect(project().tracks?.['2']).toEqual({ soloed: true })
+
+    store().setTrack(2, { soloed: false })
+    // The last flag off takes the whole record with it, so an untouched
+    // project never grows a `tracks` key at all.
+    expect(project().tracks).toBeUndefined()
+  })
+
+  it('drops every solo at once, leaving mutes alone', () => {
+    store().setTrack(1, { soloed: true })
+    store().setTrack(2, { soloed: true, muted: true })
+    expect(store().clearTrackSolos()).toBe(true)
+    expect(project().tracks?.['1']).toBeUndefined()
+    expect(project().tracks?.['2']).toEqual({ muted: true })
+  })
+
+  it('is undoable like any other edit', () => {
+    store().setTrack(3, { muted: true })
+    store().undo()
+    expect(project().tracks).toBeUndefined()
+  })
+
+  it('drops mixer state above a shrunken track count', () => {
+    store().setTrack(6, { muted: true })
+    expect(store().setMeta({ trackCount: 4 })).toBe(true)
+    expect(project().tracks).toBeUndefined()
+    expect(validateProject(project()).ok).toBe(true)
+  })
+})
+
 describe('undo and redo', () => {
   it('steps back and forward through edits', () => {
     store().createSlot('A1')

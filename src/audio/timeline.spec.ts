@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { demoProject, emptyProject, makeSlot } from '../model/defaults'
 import type { Project } from '../model/types'
-import { arrangementTimeline, chainTimeline, refTimeline, resolveTracks, segmentAt, songCycles, tile } from './timeline'
+import {
+  arrangementTimeline,
+  chainTimeline,
+  refTimeline,
+  resolveTracks,
+  sceneCycles,
+  segmentAt,
+  songCycles,
+  tile,
+} from './timeline'
 
 /** A minimal project with two slots of different lengths and one chain. */
 function fixture(): Project {
@@ -71,6 +80,31 @@ describe('refTimeline', () => {
   it('prefers a slot when both namespaces are searched', () => {
     // Ids are validated as unique across both, so a slot hit is decisive.
     expect(refTimeline(fixture(), 'A').segments[0].slot).toBe('A')
+  })
+})
+
+describe('sceneCycles', () => {
+  const scene = (cells: Record<string, string>) => ({ name: 'S', cells })
+
+  it('is the longest cell, so nothing is cut off part-way', () => {
+    // A is one cycle, B is two, C is a half.
+    expect(sceneCycles(fixture(), scene({ '1': 'A', '2': 'B', '3': 'C' }))).toBe(2)
+  })
+
+  it('measures a chain by its whole run, not by one step', () => {
+    // CH is A twice then B once: 1 + 1 + 2 = 4 cycles.
+    expect(sceneCycles(fixture(), scene({ '1': 'CH' }))).toBe(4)
+    // …and it wins over a longer single slot only because it really is longer.
+    expect(sceneCycles(fixture(), scene({ '1': 'CH', '2': 'B' }))).toBe(4)
+  })
+
+  it('is zero for a scene with nothing in it', () => {
+    expect(sceneCycles(fixture(), scene({}))).toBe(0)
+  })
+
+  it('ignores a reference that no longer resolves', () => {
+    expect(sceneCycles(fixture(), scene({ '1': 'A', '2': 'GONE' }))).toBe(1)
+    expect(sceneCycles(fixture(), scene({ '1': 'GONE' }))).toBe(0)
   })
 })
 
