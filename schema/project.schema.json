@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://chainsaw.invalid/schema/project.schema.json",
+  "title": "Chainsaw project",
+  "type": "object",
+  "required": ["meta", "instruments", "slots", "chains", "arrangement", "grid"],
+  "additionalProperties": false,
+  "definitions": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "trackKey": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "stepResolution": {
+      "type": "string",
+      "enum": ["1n", "2n", "4n", "8n", "16n", "32n", "64n"]
+    },
+    "cells": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/trackKey" },
+      "additionalProperties": { "$ref": "#/definitions/id" }
+    }
+  },
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["name", "bpm", "cyclesPerBar", "trackCount", "defaultSlotLength", "created", "modified", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bpm": { "type": "number", "minimum": 20, "maximum": 400 },
+        "cyclesPerBar": { "type": "number", "minimum": 0.25, "maximum": 16 },
+        "trackCount": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "defaultSlotLength": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "created": { "type": "string" },
+        "modified": { "type": "string" },
+        "version": { "type": "string" },
+        "quantize": { "type": "string", "enum": ["immediate", "cycle", "bar"] },
+        "lastSceneState": {
+          "type": "object",
+          "required": ["cells"],
+          "additionalProperties": false,
+          "properties": {
+            "cells": { "$ref": "#/definitions/cells" },
+            "scene": { "type": "string" }
+          }
+        }
+      }
+    },
+    "instruments": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["base"],
+        "additionalProperties": false,
+        "properties": {
+          "base": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["code", "length", "steps", "color", "muted"],
+        "additionalProperties": false,
+        "properties": {
+          "instrument": { "$ref": "#/definitions/id" },
+          "code": { "type": "string" },
+          "length": { "type": "integer", "minimum": 1, "maximum": 256 },
+          "steps": { "$ref": "#/definitions/stepResolution" },
+          "color": { "$ref": "#/definitions/color" },
+          "muted": { "type": "boolean" }
+        }
+      }
+    },
+    "chains": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["track", "steps"],
+        "additionalProperties": false,
+        "properties": {
+          "track": { "type": "integer", "minimum": 1, "maximum": 32 },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["slot", "repeat", "transpose", "gainOffset"],
+              "additionalProperties": false,
+              "properties": {
+                "slot": { "$ref": "#/definitions/id" },
+                "repeat": { "type": "integer", "minimum": 1, "maximum": 64 },
+                "transpose": { "type": "integer", "minimum": -48, "maximum": 48 },
+                "gainOffset": { "type": "number", "minimum": -1, "maximum": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "arrangement": {
+      "type": "object",
+      "required": ["tracks"],
+      "additionalProperties": false,
+      "properties": {
+        "tracks": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/trackKey" },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["bar", "chain", "len"],
+              "additionalProperties": false,
+              "properties": {
+                "bar": { "type": "integer", "minimum": 0, "maximum": 4096 },
+                "chain": { "$ref": "#/definitions/id" },
+                "len": { "type": "integer", "minimum": 1, "maximum": 4096 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "required": ["scenes"],
+      "additionalProperties": false,
+      "properties": {
+        "scenes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "cells"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "$ref": "#/definitions/id" },
+              "cells": { "$ref": "#/definitions/cells" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

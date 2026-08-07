@@ -1,0 +1,25 @@
+# Dependencies
+node_modules
+
+# Builds
+dist
+dist-ssr
+*.local
+
+# Test output
+coverage
+test-results
+playwright-report
+blob-report
+.playwright
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*

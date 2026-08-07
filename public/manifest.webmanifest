@@ -1,0 +1,17 @@
+{
+  "name": "Chainsaw — live pattern sequencer",
+  "short_name": "Chainsaw",
+  "description": "Strudel live coding with LSDJ structure and an Ableton-style scene grid.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0c0e14",
+  "theme_color": "#0c0e14",
+  "categories": ["music", "productivity"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
