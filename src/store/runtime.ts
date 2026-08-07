@@ -12,6 +12,14 @@ import { useProject } from './project'
 
 export type Panel = 'grid' | 'arrangement'
 
+/**
+ * Which of the three columns is on screen when there is only room for one.
+ * Ignored by the layout above the narrow breakpoint, where all three are
+ * visible at once, but still tracked so a phone rotated to landscape and back
+ * returns to where the performer was.
+ */
+export type Pane = 'project' | 'stage' | 'editor'
+
 export interface RuntimeStore {
   status: EngineStatus
   /** Live scene/cell overrides, by track (PRD §7.5). Not part of the arrangement. */
@@ -19,6 +27,8 @@ export interface RuntimeStore {
   /** Name of the scene triggered whole, when the overrides still match it. */
   activeScene: string | null
   panel: Panel
+  /** Which single column is shown on a narrow screen. */
+  pane: Pane
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
   /** Chain currently open in the chain editor. */
@@ -27,6 +37,7 @@ export interface RuntimeStore {
   masterVolume: number
 
   setPanel: (panel: Panel) => void
+  setPane: (pane: Pane) => void
   setEditing: (slot: string | null) => void
   setEditingChain: (chain: string | null) => void
   setScratch: (code: string) => void
@@ -67,15 +78,20 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   overrides: {},
   activeScene: null,
   panel: 'grid',
+  pane: 'stage',
   editing: null,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
   masterVolume: 0.8,
   scratchError: null,
 
-  setPanel: (panel) => set({ panel }),
-  setEditing: (editing) => set({ editing }),
-  setEditingChain: (editingChain) => set({ editingChain }),
+  setPanel: (panel) => set({ panel, pane: 'stage' }),
+  setPane: (pane) => set({ pane }),
+  // Opening something for editing brings its editor on screen. On a wide
+  // layout the pane is inert and this changes nothing; on a narrow one it is
+  // the difference between tapping a slot and appearing to do nothing.
+  setEditing: (editing) => set(editing === null ? { editing } : { editing, pane: 'editor' }),
+  setEditingChain: (editingChain) => set(editingChain === null ? { editingChain } : { editingChain, pane: 'stage' }),
   setScratch: (scratch) => set({ scratch }),
 
   setMasterVolume(volume) {

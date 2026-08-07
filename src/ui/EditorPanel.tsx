@@ -55,7 +55,7 @@ function ScratchPad() {
     <section className="editor-panel">
       <header className="editor-head">
         <h2>scratch</h2>
-        <span className="hint">Ctrl+Enter to evaluate — plays stacked over the tracks, like the stock REPL</span>
+        <span className="hint keys">Ctrl+Enter to evaluate — plays stacked over the tracks, like the stock REPL</span>
         <div className="spacer" />
         <button onClick={() => void evaluateScratch(draft.current)}>evaluate</button>
         <button onClick={commitToSlot} title="Turn this pattern into a reusable slot">

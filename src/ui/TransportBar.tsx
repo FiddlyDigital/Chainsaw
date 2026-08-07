@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { QUANTIZE_OPTIONS, type Quantize } from '../model/types'
 import { SOURCE_URL, LICENSE } from '../source'
 import { CommittedInput } from './CommittedInput'
@@ -11,8 +12,16 @@ export interface TransportBarProps {
   onNew: () => void
 }
 
-/** Play/stop, tempo, position, master volume and the global quantize (PRD §8.1). */
+/**
+ * Play/stop, tempo, position, master volume and the global quantize (PRD §8.1).
+ *
+ * Everything past the transport itself lives in `.transport-more`, which is
+ * `display: contents` on a wide screen — one flat row, exactly as before — and
+ * a collapsible tray on a narrow one, where fifteen controls would otherwise
+ * wrap into four rows and leave no room for the grid.
+ */
 export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarProps) {
+  const [showMore, setShowMore] = useState(false)
   const project = useProject((state) => state.project)
   const dirty = useProject((state) => state.dirty)
   const setMeta = useProject((state) => state.setMeta)
@@ -59,72 +68,6 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
         <span className="counter-cycle">cyc {status.cycle.toFixed(2)}</span>
       </div>
 
-      <label className="field">
-        <span>bpm</span>
-        <input
-          type="number"
-          min={20}
-          max={400}
-          step={1}
-          value={project.meta.bpm}
-          onChange={(event) => setMeta({ bpm: Number(event.target.value) })}
-        />
-      </label>
-
-      <label className="field">
-        <span>cyc/bar</span>
-        <input
-          type="number"
-          min={0.25}
-          max={16}
-          step={0.25}
-          value={project.meta.cyclesPerBar}
-          onChange={(event) => setMeta({ cyclesPerBar: Number(event.target.value) })}
-        />
-      </label>
-
-      <label className="field">
-        <span>tracks</span>
-        <input
-          type="number"
-          min={1}
-          max={32}
-          value={project.meta.trackCount}
-          onChange={(event) => {
-            const next = Number(event.target.value)
-            if (next < project.meta.trackCount && !confirmTruncate(next)) return
-            setMeta({ trackCount: next })
-          }}
-        />
-      </label>
-
-      <label className="field">
-        <span>quantize</span>
-        <select
-          value={project.meta.quantize ?? 'bar'}
-          onChange={(event) => setMeta({ quantize: event.target.value as Quantize })}
-        >
-          {QUANTIZE_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option === 'bar' ? 'next bar' : option === 'cycle' ? 'next cycle' : 'immediate'}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="field volume">
-        <span>vol</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={masterVolume}
-          onChange={(event) => setMasterVolume(Number(event.target.value))}
-          aria-label="Master volume"
-        />
-      </label>
-
       {status.pendingAt !== null && (
         <span className="pill pending" title="A change is queued for the next boundary">
           queued → cyc {status.pendingAt.toFixed(0)}
@@ -136,40 +79,118 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
         </button>
       )}
 
-      <div className="transport-group right">
-        <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-          ↶
-        </button>
-        <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
-          ↷
-        </button>
-        <CommittedInput
-          className="project-name"
-          value={project.meta.name}
-          onCommit={(name) => setMeta({ name })}
-          ariaLabel="Project name"
-        />
-        {dirty && <span className="dot" title="Unsaved changes" />}
-        <button onClick={onNew}>new</button>
-        <button onClick={onOpen} title="Open (Ctrl+O)">
-          open
-        </button>
-        <button onClick={onSave} title="Save (Ctrl+S)">
-          save
-        </button>
-        <button onClick={onSaveAs} title="Save as (Ctrl+Shift+S)">
-          save as
-        </button>
-        {/* AGPL §13: anyone using this over a network is offered the source. */}
-        <a
-          className="source-link"
-          href={SOURCE_URL}
-          target="_blank"
-          rel="noreferrer noopener license"
-          title={`Chainsaw is free software (${LICENSE}) — get the source`}
-        >
-          source
-        </a>
+      <button
+        className={`transport-toggle ${showMore ? 'on' : ''}`}
+        onClick={() => setShowMore(!showMore)}
+        aria-expanded={showMore}
+        aria-label="Project and tempo controls"
+        title="Project and tempo controls"
+      >
+        ⋯
+      </button>
+
+      <div className={`transport-more ${showMore ? 'open' : ''}`}>
+        <label className="field">
+          <span>bpm</span>
+          <input
+            type="number"
+            min={20}
+            max={400}
+            step={1}
+            value={project.meta.bpm}
+            onChange={(event) => setMeta({ bpm: Number(event.target.value) })}
+          />
+        </label>
+
+        <label className="field">
+          <span>cyc/bar</span>
+          <input
+            type="number"
+            min={0.25}
+            max={16}
+            step={0.25}
+            value={project.meta.cyclesPerBar}
+            onChange={(event) => setMeta({ cyclesPerBar: Number(event.target.value) })}
+          />
+        </label>
+
+        <label className="field">
+          <span>tracks</span>
+          <input
+            type="number"
+            min={1}
+            max={32}
+            value={project.meta.trackCount}
+            onChange={(event) => {
+              const next = Number(event.target.value)
+              if (next < project.meta.trackCount && !confirmTruncate(next)) return
+              setMeta({ trackCount: next })
+            }}
+          />
+        </label>
+
+        <label className="field">
+          <span>quantize</span>
+          <select
+            value={project.meta.quantize ?? 'bar'}
+            onChange={(event) => setMeta({ quantize: event.target.value as Quantize })}
+          >
+            {QUANTIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option === 'bar' ? 'next bar' : option === 'cycle' ? 'next cycle' : 'immediate'}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field volume">
+          <span>vol</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={masterVolume}
+            onChange={(event) => setMasterVolume(Number(event.target.value))}
+            aria-label="Master volume"
+          />
+        </label>
+
+        <div className="transport-group right">
+          <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+            ↶
+          </button>
+          <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+            ↷
+          </button>
+          <CommittedInput
+            className="project-name"
+            value={project.meta.name}
+            onCommit={(name) => setMeta({ name })}
+            ariaLabel="Project name"
+          />
+          {dirty && <span className="dot" title="Unsaved changes" />}
+          <button onClick={onNew}>new</button>
+          <button onClick={onOpen} title="Open (Ctrl+O)">
+            open
+          </button>
+          <button onClick={onSave} title="Save (Ctrl+S)">
+            save
+          </button>
+          <button onClick={onSaveAs} title="Save as (Ctrl+Shift+S)">
+            save as
+          </button>
+          {/* AGPL §13: anyone using this over a network is offered the source. */}
+          <a
+            className="source-link"
+            href={SOURCE_URL}
+            target="_blank"
+            rel="noreferrer noopener license"
+            title={`Chainsaw is free software (${LICENSE}) — get the source`}
+          >
+            source
+          </a>
+        </div>
       </div>
     </header>
   )

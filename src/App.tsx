@@ -20,6 +20,9 @@ export default function App() {
   const markSaved = useProject((state) => state.markSaved)
   const panel = useRuntime((state) => state.panel)
   const setPanel = useRuntime((state) => state.setPanel)
+  const pane = useRuntime((state) => state.pane)
+  const setPane = useRuntime((state) => state.setPane)
+  const editing = useRuntime((state) => state.editing)
   const editingChain = useRuntime((state) => state.editingChain)
   const audioReady = useRuntime((state) => state.status.audioReady)
 
@@ -94,7 +97,10 @@ export default function App() {
     <div className="app">
       <TransportBar onSave={() => void doSave()} onSaveAs={() => void doSaveAs()} onOpen={() => void doOpen()} onNew={doNew} />
 
-      <main className="body">
+      {/* `data-pane` is what the narrow layout reads to show one column at a
+          time. Every column stays mounted either way, so switching panes never
+          costs an editor its undo history or a scroll position. */}
+      <main className="body" data-pane={pane}>
         <ProjectPanel />
 
         <div className="stage">
@@ -113,6 +119,19 @@ export default function App() {
 
         <EditorPanel />
       </main>
+
+      {/* Narrow screens only: the column switcher. */}
+      <nav className="pane-bar" aria-label="Panes">
+        <button className={pane === 'project' ? 'on' : ''} onClick={() => setPane('project')} aria-current={pane === 'project'}>
+          project
+        </button>
+        <button className={pane === 'stage' ? 'on' : ''} onClick={() => setPane('stage')} aria-current={pane === 'stage'}>
+          {panel}
+        </button>
+        <button className={pane === 'editor' ? 'on' : ''} onClick={() => setPane('editor')} aria-current={pane === 'editor'}>
+          {editing ? `slot ${editing}` : 'scratch'}
+        </button>
+      </nav>
 
       {notice && <div className="notice">{notice}</div>}
     </div>

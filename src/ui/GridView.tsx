@@ -123,7 +123,7 @@ export function GridView() {
       </div>
       <div className="grid-actions">
         <button onClick={() => addScene(nextSceneName(project.grid.scenes.map((scene) => scene.name)))}>+ scene</button>
-        <span className="hint">
+        <span className="hint keys">
           click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc returns to the
           arrangement
         </span>

@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` so the app can paint under a notch and pay for it
+         back with env(safe-area-inset-*); `interactive-widget` so the on-screen
+         keyboard shrinks the layout rather than scrolling the transport away. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>Chainsaw</title>
     <meta
       name="description"
