@@ -4,7 +4,7 @@ import { STEP_RESOLUTIONS, type StepResolution } from '../model/types'
 import { slotCycles } from '../audio/timing'
 import { referencesToSlot } from '../audio/timeline'
 import { useProject } from '../store/project'
-import { getEngine, useRuntime } from '../store/runtime'
+import { useRuntime } from '../store/runtime'
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor'
 import { CommittedInput } from './CommittedInput'
 import { PatternKeys } from './PatternKeys'
@@ -32,6 +32,9 @@ function ScratchPad() {
   const setScratch = useRuntime((state) => state.setScratch)
   const evaluateScratch = useRuntime((state) => state.evaluateScratch)
   const scratchError = useRuntime((state) => state.scratchError)
+  const scratchMode = useRuntime((state) => state.scratchMode)
+  const setScratchMode = useRuntime((state) => state.setScratchMode)
+  const clearScratch = useRuntime((state) => state.clearScratch)
   const setEditing = useRuntime((state) => state.setEditing)
   const project = useProject((state) => state.project)
   const createSlot = useProject((state) => state.createSlot)
@@ -59,18 +62,38 @@ function ScratchPad() {
     <section className="editor-panel">
       <header className="editor-head">
         <h2>scratch</h2>
-        <span className="hint keys">Ctrl+Enter to evaluate — plays stacked over the tracks, like the stock REPL</span>
+        <span className="hint keys">
+          Ctrl+Enter to evaluate — plays alongside the tracks, like the stock REPL. Mute or solo to change the mix.
+        </span>
         <div className="spacer" />
         <button onClick={() => void evaluateScratch(draft.current)}>evaluate</button>
+        {/*
+         * A channel strip for the scratch layer: mute takes it out of the mix
+         * and solo takes everything else out, both at the next boundary like
+         * any other change. The pattern survives either way, so these are
+         * faders rather than an undo — which is what makes them usable
+         * mid-set.
+         */}
+        <button
+          className={scratchMode === 'off' ? 'on' : ''}
+          onClick={() => setScratchMode(scratchMode === 'off' ? 'stack' : 'off')}
+          aria-pressed={scratchMode === 'off'}
+          title="Take the scratch pattern out of the mix, keeping it ready"
+        >
+          mute
+        </button>
+        <button
+          className={scratchMode === 'solo' ? 'on' : ''}
+          onClick={() => setScratchMode(scratchMode === 'solo' ? 'stack' : 'solo')}
+          aria-pressed={scratchMode === 'solo'}
+          title="Play the scratch pattern on its own, silencing the tracks"
+        >
+          solo
+        </button>
         <button onClick={commitToSlot} title="Turn this pattern into a reusable slot">
           commit to slot…
         </button>
-        <button
-          onClick={() => {
-            getEngine().clearScratch()
-          }}
-          title="Stop the scratch pattern without touching the tracks"
-        >
+        <button onClick={clearScratch} title="Discard the scratch pattern without touching the tracks">
           hush
         </button>
       </header>

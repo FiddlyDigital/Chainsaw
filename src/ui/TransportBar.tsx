@@ -39,6 +39,9 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
   const activeScene = useRuntime((state) => state.activeScene)
   const overrides = useRuntime((state) => state.overrides)
   const returnToArrangement = useRuntime((state) => state.returnToArrangement)
+  const scratchMode = useRuntime((state) => state.scratchMode)
+  const scratchLive = useRuntime((state) => state.scratchLive)
+  const setScratchMode = useRuntime((state) => state.setScratchMode)
 
   const bar = Math.floor(status.bar)
   const beatInBar = status.bar - bar
@@ -76,6 +79,17 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
       {live && (
         <button className="pill live" onClick={returnToArrangement} title="Return to arrangement (Esc)">
           live{activeScene ? `: ${activeScene}` : ''} ⏎ arrangement
+        </button>
+      )}
+      {/* The scratch layer sounds from wherever you are, so it has to be
+          visible — and stoppable — from wherever you are. */}
+      {scratchLive && scratchMode !== 'off' && (
+        <button
+          className="pill scratch"
+          onClick={() => setScratchMode('off')}
+          title="The scratch pad is in the mix. Click to mute it."
+        >
+          scratch{scratchMode === 'solo' ? ' solo' : ''}
         </button>
       )}
 

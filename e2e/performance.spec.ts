@@ -124,6 +124,56 @@ test('the scratch pad evaluates and starts playing, like the stock REPL', async 
   expect(problems).toEqual([])
 })
 
+test('the scratch pad plays alongside the tracks, and can be muted or soloed', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+  await page.getByRole('button', { name: 'Play' }).click()
+
+  // Fire a scene so there is something for the scratch to play against.
+  await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('drop')
+
+  const editor = page.locator('.code-editor .cm-content')
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('s("cp*2").gain(0.4)')
+  await page.keyboard.press('ControlOrMeta+Enter')
+
+  // Both layers are in the mix: the scratch is announced and the scene it is
+  // playing over is still live. Neither displaced the other.
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+  await expect(page.locator('.pill.live')).toContainText('drop')
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+
+  // The pill says "scratch solo" too, so reach for the strip, not the readout.
+  const strip = page.locator('.editor-panel .editor-head')
+  const solo = strip.getByRole('button', { name: 'solo' })
+  const mute = strip.getByRole('button', { name: 'mute' })
+
+  // Soloing takes the tracks out without disturbing the scene…
+  await solo.click()
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch solo')
+  await expect(page.locator('.pill.live')).toContainText('drop')
+  // …and comes back off.
+  await solo.click()
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+
+  // Muting keeps the pattern; the transport never stops for any of it.
+  await mute.click()
+  await expect(page.locator('.pill.scratch')).toHaveCount(0)
+  await mute.click()
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+
+  // The transport's pill is the way out from anywhere else in the app.
+  await page.locator('.pill.scratch').click()
+  await expect(page.locator('.pill.scratch')).toHaveCount(0)
+
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+  expect(problems).toEqual([])
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

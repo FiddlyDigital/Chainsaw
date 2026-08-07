@@ -76,6 +76,37 @@ noise in aeroplane mode. Strudel's waveform and ZZFX synths are registered
 alongside them, so `sound("sawtooth")`, `note(...)`, and the whole effects chain
 work as normal.
 
+## The scratch pad
+
+The scratch pad is the stock Strudel REPL, kept intact: type an expression, hit
+`Ctrl/Cmd + Enter`, and it plays. What it is not is a separate instrument —
+**it sounds alongside whatever the tracks are already playing**, over the top
+of the arrangement, the scenes, and any live overrides, all against the same
+transport. So you can write an idea while a set is running and hear it in
+context without touching the document.
+
+Like everything else in Chainsaw it is boundary-quantized: evaluating queues
+the pattern for the next bar or cycle per the transport's `quantize` setting,
+so it drops in on the beat rather than the instant you finished typing.
+
+Three ways to mix it, all of them queued the same way:
+
+| Control | Does                                                        |
+| ------- | ----------------------------------------------------------- |
+| —       | Alongside the tracks, the stock REPL behaviour              |
+| `mute`  | Out of the mix, pattern kept compiled and ready             |
+| `solo`  | On its own, silencing the tracks without touching the scene |
+| `hush`  | Discarded entirely; the code stays in the editor            |
+
+`mute` and `solo` are faders rather than an undo: the compiled pattern survives
+either way, so coming back out of one costs no recompile and loses nothing.
+Soloing with nothing in the scratch pad does not silence the set — a mode only
+means anything while there is a pattern to apply it to.
+
+Whenever the layer is sounding, the transport carries a **scratch** pill next
+to the live one, and clicking it mutes. The pad is one of three panes on a
+phone, so the layer has to be visible and stoppable from wherever you are.
+
 ## Keys
 
 Ableton's transport, Strudel's evaluate. Nothing fires while the caret is in a
