@@ -53,8 +53,17 @@ jobs:
     # The end-to-end suite runs against the built app, in a real browser with a
     # real AudioContext: the service worker, the offline shell, and whether any
     # sound fails to resolve are all part of what is being checked.
-    name: End to end
+    #
+    # Two bases, because everything the app builds — asset URLs, the manifest's
+    # scope, the service worker's scope and precache — is base-relative, and
+    # that has a way of working at exactly one of a domain root and a folder.
+    # GitHub Pages serves the folder case, so it is not optional.
+    name: End to end (${{ matrix.base }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        base: ['/', '/Chainsaw/']
     steps:
       - uses: actions/checkout@v4
 
@@ -75,6 +84,8 @@ jobs:
 
       - name: Run the suite
         run: npm run test:e2e
+        env:
+          BASE_PATH: ${{ matrix.base }}
 
       - name: Report
         if: failure()
@@ -82,7 +93,7 @@ jobs:
         with:
           # Traces and screenshots from the failure, which is the only time
           # anyone wants them.
-          name: playwright-report
+          name: playwright-report-${{ strategy.job-index }}
           path: |
             playwright-report/
             test-results/

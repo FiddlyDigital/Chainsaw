@@ -1,0 +1,62 @@
+name: Pages
+
+# Deploys to https://fiddlydigital.github.io/Chainsaw/
+#
+# It waits on CI rather than running beside it, and builds the commit CI passed
+# on rather than whatever main has become since. A live URL that the tests never
+# agreed to is worse than a stale one.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  # For redeploying a known-good commit without waiting for another push.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one half-way: an interrupted
+# publish can leave the site serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The exact commit CI passed on, not whatever main has become in the
+          # meantime.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # No base path is passed: the app is built entirely base-relative, so the
+      # same bundle works at a domain root and under /Chainsaw/ alike. CI proves
+      # both, which is what lets this stay a plain build.
+      - name: Build
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

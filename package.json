@@ -2,6 +2,12 @@
   "name": "chainsaw",
   "version": "0.1.0",
   "description": "Strudel live coding with LSDJ structure and an Ableton-style scene grid.",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FiddlyDigital/Chainsaw.git"
+  },
+  "homepage": "https://fiddlydigital.github.io/Chainsaw/",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",

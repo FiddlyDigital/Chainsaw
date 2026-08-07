@@ -17,6 +17,19 @@ const preinstalledChromium = (() => {
 })()
 
 /**
+ * Where the app is served from during the run.
+ *
+ * GitHub Pages puts it under `/Chainsaw/`, and everything the app builds —
+ * asset URLs, the manifest's scope, the service worker's scope and precache —
+ * is base-relative. That either works at both a domain root and a folder or at
+ * neither, so CI runs the suite at both. Set `BASE_PATH=/Chainsaw/` to check
+ * the folder case locally.
+ */
+const basePath = `/${(process.env.BASE_PATH ?? '/').replace(/^\/+|\/+$/g, '')}/`.replace(/^\/\//, '/')
+const port = 4180
+const origin = `http://127.0.0.1:${port}`
+
+/**
  * End-to-end tests run against the **built** app, not the dev server: the
  * service worker, the chunking and the asset paths are all part of what is
  * being checked.
@@ -28,7 +41,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4180',
+    // Trailing slash matters: `page.goto('.')` resolves against it.
+    baseURL: `${origin}${basePath}`,
     trace: 'retain-on-failure',
   },
   projects: [
@@ -48,9 +62,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx vite preview --port 4180 --strictPort',
-    url: 'http://127.0.0.1:4180',
-    reuseExistingServer: !process.env.CI,
+    // Not `vite preview`: that can only serve a domain root, and it is the
+    // folder case that breaks. See `scripts/serve.mjs`.
+    command: `node scripts/serve.mjs --port=${port} --prefix=${basePath}`,
+    url: `${origin}${basePath}`,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 })

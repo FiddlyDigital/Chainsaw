@@ -24,7 +24,12 @@ function serviceWorker(): Plugin {
       const built = Object.keys(bundle)
         .filter((name) => name !== 'index.html')
         .map((name: string) => `./${name}`)
-      const publicFiles = readdirSync(here('./public')).map((name) => `./${name}`)
+      // Dotfiles are excluded: `.nojekyll` is a marker for GitHub Pages, not
+      // part of the app, and precaching it would make the whole install fail
+      // if it ever went missing — `cache.addAll` is all-or-nothing.
+      const publicFiles = readdirSync(here('./public'))
+        .filter((name) => !name.startsWith('.'))
+        .map((name) => `./${name}`)
       const precache = ['./index.html', ...built, ...publicFiles]
       const version = createHash('sha256').update(precache.join('\n')).digest('hex').slice(0, 12)
 

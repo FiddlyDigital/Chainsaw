@@ -1,4 +1,5 @@
 import { QUANTIZE_OPTIONS, type Quantize } from '../model/types'
+import { SOURCE_URL, LICENSE } from '../source'
 import { CommittedInput } from './CommittedInput'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
@@ -159,6 +160,16 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
         <button onClick={onSaveAs} title="Save as (Ctrl+Shift+S)">
           save as
         </button>
+        {/* AGPL §13: anyone using this over a network is offered the source. */}
+        <a
+          className="source-link"
+          href={SOURCE_URL}
+          target="_blank"
+          rel="noreferrer noopener license"
+          title={`Chainsaw is free software (${LICENSE}) — get the source`}
+        >
+          source
+        </a>
       </div>
     </header>
   )

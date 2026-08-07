@@ -6,8 +6,10 @@
  * off. There is nothing to fetch at runtime: the built-in sounds are
  * synthesised rather than sampled, which is why offline works at all.
  *
- * `__PRECACHE__` and `__VERSION__` are replaced at build time by the plugin in
- * `vite.config.ts`.
+ * The PRECACHE and VERSION placeholders below are filled in at build time by
+ * the plugin in `vite.config.ts`, from the files the build actually emitted.
+ * They are deliberately named without their delimiters in this comment, so
+ * that the substitution does not paste a copy of the file list in here too.
  */
 const VERSION = '__VERSION__'
 const CACHE = `chainsaw-${VERSION}`

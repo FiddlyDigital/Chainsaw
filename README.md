@@ -11,6 +11,8 @@ nothing glitches. The whole project is one human-readable JSON file.
 
 It installs as a PWA and works with the network off.
 
+**Live at <https://fiddlydigital.github.io/Chainsaw/>**
+
 ```
 npm install
 npm run dev        # http://localhost:5173
@@ -149,3 +151,43 @@ rest of the project keeps playing.
 Multi-performer sync, audio export, MIDI/OSC out, undo across sessions, and slot
 variations. The document is flat and name-addressed, which is what a CRDT layer
 would need later.
+
+## Deployment
+
+Every push to `main` that passes CI publishes to GitHub Pages
+(`.github/workflows/pages.yml`). It waits on CI rather than running beside it,
+and builds the commit CI passed on rather than whatever `main` has become since.
+
+Nothing about the build is Pages-specific. The app is built entirely
+base-relative — asset URLs, the manifest's `scope` and `start_url`, and the
+service worker's scope and precache list — so the same bundle works at a domain
+root and under a folder like `/Chainsaw/` alike. That is easy to get wrong and
+invisible until deployed, so CI runs the whole end-to-end suite at **both**
+bases, offline test included:
+
+```
+npm run test:e2e                      # served at /
+BASE_PATH=/Chainsaw/ npm run test:e2e # served at /Chainsaw/, as Pages does
+```
+
+`scripts/serve.mjs` is what serves them, rather than `vite preview`, because
+preview can only serve a domain root and it is the folder case that breaks.
+It also sends `Vary: Origin` on purpose — see the note in that file.
+
+`public/.nojekyll` is belt and braces: artifact-based Pages deployment does not
+run Jekyll at all, but it costs nothing and keeps things working if the repo is
+ever switched to publishing from a branch.
+
+To deploy somewhere else, serve `dist/` from anywhere; there is no server side
+and no build-time host configuration.
+
+## Licence
+
+**AGPL-3.0-or-later** — see [LICENSE](LICENSE). This is not a free choice:
+Chainsaw links against Strudel, which is AGPL, so it has to be.
+
+Note what that means if you deploy it. Section 13 covers people who interact
+with the program remotely over a network, which is what a hosted Chainsaw is:
+they must be prominently offered its Corresponding Source. That is why the
+transport bar carries a permanent **source** link (`src/source.ts`). If you fork
+this and put it online, point that link at your fork — and keep it.

@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
 
 test('boots on the demo project with its grid and arrangement', async ({ page }) => {
   const problems = watchConsole(page)
-  await page.goto('/')
+  await page.goto('.')
 
   await expect(page.locator('.transport')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
@@ -47,7 +47,7 @@ test('boots on the demo project with its grid and arrangement', async ({ page })
 
 test('plays: the transport advances and no sound fails to resolve', async ({ page }) => {
   const problems = watchConsole(page)
-  await page.goto('/')
+  await page.goto('.')
 
   await page.getByRole('button', { name: 'Play' }).click()
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
@@ -64,7 +64,7 @@ test('plays: the transport advances and no sound fails to resolve', async ({ pag
 
 test('triggering a scene overrides the arrangement, and Esc gives it back', async ({ page }) => {
   const problems = watchConsole(page)
-  await page.goto('/')
+  await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()
 
   // Scene names live in editable inputs, so select by row: the demo's scenes
@@ -86,7 +86,7 @@ test('triggering a scene overrides the arrangement, and Esc gives it back', asyn
 
 test('a live code edit reaches playback without stopping the transport', async ({ page }) => {
   const problems = watchConsole(page)
-  await page.goto('/')
+  await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()
 
   await page.locator('.project-panel .entry', { hasText: 'A1' }).first().click()
@@ -111,7 +111,7 @@ test('a live code edit reaches playback without stopping the transport', async (
 
 test('the scratch pad evaluates and starts playing, like the stock REPL', async ({ page }) => {
   const problems = watchConsole(page)
-  await page.goto('/')
+  await page.goto('.')
 
   const editor = page.locator('.code-editor .cm-content')
   await editor.click()
@@ -125,7 +125,7 @@ test('the scratch pad evaluates and starts playing, like the stock REPL', async 
 })
 
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()
 
   const editor = page.locator('.code-editor .cm-content')
@@ -139,7 +139,7 @@ test('bad code is reported inline and does not take the transport down', async (
 })
 
 test('an overlapping placement is refused with a message, not silently dropped', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('.')
   await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
 
   // Track 5 is empty in the demo, and DRUMS_A is four cycles — four bars at 26px
@@ -158,7 +158,7 @@ test('an overlapping placement is refused with a message, not silently dropped',
 })
 
 test('the grid and the arrangement follow the track count', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('.')
   await expect(page.locator('.grid thead .track-head')).toHaveCount(8)
 
   await page.getByLabel('tracks').fill('16')
@@ -180,7 +180,7 @@ test('the project round-trips through a save', async ({ page }) => {
     delete (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker
     delete (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker
   })
-  await page.goto('/')
+  await page.goto('.')
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'save as' }).click()
   const file = await download
@@ -196,7 +196,7 @@ test('the project round-trips through a save', async ({ page }) => {
 })
 
 test('installs a service worker and still runs with the network cut', async ({ page, context }) => {
-  await page.goto('/')
+  await page.goto('.')
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 20_000 })
 
   await context.setOffline(true)
