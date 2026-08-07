@@ -276,6 +276,12 @@ code {
   cursor: pointer;
 }
 
+.pill.scratch {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  cursor: pointer;
+}
+
 .spacer {
   flex: 1;
 }

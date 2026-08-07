@@ -19,6 +19,30 @@ import { type Piece, type StrudelPattern, pieces, silence, timelinePattern } fro
 import { type LiveOverride, resolveTracks } from './timeline'
 import { cpsFor, nextBoundary } from './timing'
 
+/**
+ * What the scratch pad is doing to the mix.
+ *
+ * `stack` is the stock Strudel REPL: the scratch pattern sounds over whatever
+ * the tracks are playing. `solo` auditions an idea against silence without
+ * disturbing the document, and `off` keeps the pattern compiled and ready but
+ * silent. All three are performance controls, so a change between them lands
+ * on a boundary like any other (PRD §7.3) rather than the instant it is asked
+ * for.
+ */
+export type ScratchMode = 'off' | 'stack' | 'solo'
+
+/**
+ * The patterns that should be sounding, given what the tracks resolved to and
+ * what the scratch pad is set to do.
+ *
+ * A mode only means anything while there is a scratch pattern to apply it to —
+ * soloing nothing would silence the set, which is never what was asked for.
+ */
+export function audible<T>(tracks: T[], scratch: T | null, mode: ScratchMode): T[] {
+  if (!scratch || mode === 'off') return tracks
+  return mode === 'solo' ? [scratch] : [...tracks, scratch]
+}
+
 export interface EngineStatus {
   started: boolean
   /** Absolute cycle position of the transport. */
@@ -50,8 +74,9 @@ export class Engine {
   private frame: number | undefined
   private masterVolume = 0.8
   private audioReady = false
-  /** The scratch pad's pattern, stacked over the tracks. Not part of the project. */
+  /** The scratch pad's pattern, mixed in per `scratchMode`. Not part of the project. */
   private scratch: StrudelPattern | null = null
+  private scratchMode: ScratchMode = 'stack'
 
   constructor(private readonly onStatus: (status: EngineStatus) => void) {
     this.scheduler = new Cyclist({
@@ -112,13 +137,25 @@ export class Engine {
   }
 
   /**
-   * Evaluate the scratch pad. It plays stacked over the tracks and is not part
-   * of the project until the performer commits it to a slot — this is the stock
+   * Evaluate the scratch pad. It plays alongside the tracks and is not part of
+   * the project until the performer commits it to a slot — this is the stock
    * Strudel REPL, kept intact (PRD §8.2). Throws `PatternError` on bad code,
    * leaving whatever was already playing alone.
    */
   async setScratch(code: string): Promise<void> {
     this.scratch = code.trim() ? await compile(code, 'scratch') : null
+    await this.rebuild()
+  }
+
+  /**
+   * Mix the scratch pattern in, out, or over the top of everything else.
+   *
+   * The pattern itself is kept either way, so muting and unmuting costs no
+   * recompile and loses no state — it is a fader, not an undo.
+   */
+  async setScratchMode(mode: ScratchMode): Promise<void> {
+    if (mode === this.scratchMode) return
+    this.scratchMode = mode
     await this.rebuild()
   }
 
@@ -180,7 +217,7 @@ export class Engine {
 
     const errors: Record<string, string> = {}
     const tracks = resolveTracks(project, this.overrides)
-    const patterns: StrudelPattern[] = []
+    const trackPatterns: StrudelPattern[] = []
 
     for (const [, track] of tracks) {
       const { timeline, offset } = track
@@ -198,9 +235,11 @@ export class Engine {
           else errors[`slot ${segment.slot}`] = String(error)
         }
       }
-      if (entries.length) patterns.push(timelinePattern(entries, timeline.loop, offset))
+      if (entries.length) trackPatterns.push(timelinePattern(entries, timeline.loop, offset))
     }
-    if (this.scratch) patterns.push(this.scratch)
+    // Every track is still compiled under `solo`, so its errors are still
+    // reported and coming out of solo needs no recompile.
+    const patterns = audible(trackPatterns, this.scratch, this.scratchMode)
 
     if (generation !== this.generation) return // superseded while compiling
 
