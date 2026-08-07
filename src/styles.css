@@ -31,6 +31,10 @@ body {
   color: var(--text);
   font: 13px/1.45 var(--mono);
   overflow: hidden;
+  /* A drag on a lane or a scroll that runs out of grid must not turn into
+     pull-to-refresh or a rubber-band bounce mid-set. */
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 button,
@@ -46,6 +50,9 @@ button {
   border-radius: var(--radius);
   padding: 3px 8px;
   cursor: pointer;
+  /* No 300ms tap delay, and no double-tap-to-zoom stealing the double-click
+     that opens a cell's editor. */
+  touch-action: manipulation;
 }
 
 button:hover:not(:disabled) {
@@ -104,8 +111,13 @@ code {
 
 .app {
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* transport / panes / pane switcher — the last is only laid out on a narrow
+     screen, where it is displayed. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
+  /* `dvh` so a mobile browser's collapsing URL bar cannot leave the transport
+     or the pane switcher below the fold. */
+  height: 100dvh;
 }
 
 /* ── transport ─────────────────────────────────────────────── */
@@ -114,16 +126,33 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
+  padding: max(6px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left));
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+}
+
+/*
+ * On a wide screen the tray is not a box at all: `display: contents` drops it
+ * out of the layout so its children are flex items of `.transport`, one flat
+ * row exactly as if it were not there. The narrow layout turns it into a real
+ * collapsible element.
+ */
+.transport-more {
+  display: contents;
+}
+
+.transport-toggle {
+  display: none;
 }
 
 .transport-group {
   display: flex;
   align-items: center;
   gap: 4px;
+  /* The file-actions group is wider than its share on a tablet. Let it break
+     internally rather than run off the right edge. */
+  flex-wrap: wrap;
 }
 
 .transport-group.right {
@@ -730,6 +759,11 @@ code {
   background: var(--panel);
   max-height: 42%;
   overflow: auto;
+  flex-shrink: 0;
+}
+
+.steps-scroll {
+  overflow-x: auto;
 }
 
 .steps {
@@ -779,9 +813,10 @@ code {
 
 .notice {
   position: fixed;
-  bottom: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
+  max-width: calc(100% - 24px);
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -789,6 +824,24 @@ code {
   font-size: 11px;
   color: var(--dim);
 }
+
+/* ── pane switcher (narrow screens only) ───────────────────── */
+
+.pane-bar {
+  display: none;
+  gap: 4px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.pane-bar button {
+  padding: 9px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── two columns: the editor moves under the stage ─────────── */
 
 @media (max-width: 1100px) {
   .body {
@@ -799,5 +852,249 @@ code {
   .editor-panel {
     grid-column: 1 / -1;
     border-top: 1px solid var(--line);
+  }
+}
+
+/* ── touch ─────────────────────────────────────────────────── */
+
+/*
+ * Sized by input device rather than by viewport: a 1024px tablet needs the
+ * same targets a phone does, and a narrow desktop window does not.
+ */
+@media (hover: none) and (pointer: coarse) {
+  button {
+    padding: 7px 10px;
+  }
+
+  button.mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    min-width: 32px;
+    min-height: 32px;
+    line-height: 1;
+  }
+
+  .source-link {
+    padding: 8px 2px;
+  }
+
+  /* Under 16px, iOS Safari zooms the page when a field takes focus and never
+     zooms back out. Every control here is at least that. */
+  input,
+  select {
+    padding: 5px 7px;
+    font-size: 16px;
+  }
+
+  .field input[type='number'],
+  .slot-fields .field input[type='number'] {
+    width: 68px;
+  }
+
+  .tiny {
+    width: 64px;
+  }
+
+  .id-input {
+    width: 92px;
+  }
+
+  input[type='color'] {
+    width: 44px;
+    height: 32px;
+  }
+
+  input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+  }
+
+  .check {
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  .field.volume input {
+    width: 110px;
+  }
+
+  .entry {
+    padding: 7px 5px;
+  }
+
+  .grid .scene-head input {
+    width: 96px;
+  }
+
+  .cell {
+    width: 104px;
+    height: 46px;
+    /* Room for the always-visible assign control, so it never sits on top of
+       the clip's name. */
+    padding-right: 30px;
+  }
+
+  /* There is no hover to reveal it behind, so the assign control is always
+     visible — and big enough to hit. */
+  /*
+   * Wide enough to hit — but at that width a native select starts drawing its
+   * value, which the cell already says. Drop the native appearance, hide the
+   * text, and paint the chevron back on, so what is left is an affordance and
+   * nothing else. The picker itself is drawn by the OS from the option text,
+   * which none of this reaches.
+   */
+  .cell-assign {
+    appearance: none;
+    opacity: 0.55;
+    top: 2px;
+    bottom: 2px;
+    width: 28px;
+    height: auto;
+    color: transparent;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a93a6' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 11px;
+  }
+
+  .cell-assign option {
+    color: var(--text);
+  }
+
+  .track-row {
+    height: 34px;
+  }
+
+  /* A 6px edge is not a touch target. */
+  .block-resize {
+    width: 18px;
+  }
+
+  .block-resize,
+  .block-remove {
+    touch-action: none;
+  }
+
+  /* Keep the remove button clear of the widened resize handle, and let it take
+     the block's full height so there is something to actually hit. */
+  .block {
+    padding-right: 22px;
+  }
+
+  .block-remove {
+    align-self: stretch;
+    padding: 0 7px;
+  }
+
+  /* This one sets its own 11px, which would have iOS zoom the page on focus. */
+  .entry.instrument input {
+    font-size: 16px;
+  }
+}
+
+/* ── one pane at a time ────────────────────────────────────── */
+
+/*
+ * Phones, and anything short enough that stacking two panes would leave each
+ * of them a couple of centimetres. All three panes stay in the document and
+ * keep their scroll positions and editor state; `visibility` hides the two
+ * that are not selected, which also takes them out of the tab order and the
+ * accessibility tree.
+ */
+@media (max-width: 760px), (max-height: 560px) and (max-width: 1100px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .body > * {
+    grid-area: 1 / 1;
+  }
+
+  .body[data-pane='project'] > :not(.project-panel),
+  .body[data-pane='stage'] > :not(.stage),
+  .body[data-pane='editor'] > :not(.editor-panel) {
+    visibility: hidden;
+  }
+
+  .stage,
+  .editor-panel {
+    border: none;
+  }
+
+  .pane-bar {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    padding: 5px max(6px, env(safe-area-inset-left)) calc(5px + env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-right));
+  }
+
+  .notice {
+    bottom: calc(58px + env(safe-area-inset-bottom));
+  }
+
+  /* The transport keeps play, stop, position and the live pills; everything
+     else folds into the tray. */
+  .transport {
+    gap: 8px;
+    padding-bottom: 5px;
+  }
+
+  .transport-toggle {
+    display: block;
+    margin-left: auto;
+  }
+
+  .transport-more {
+    display: none;
+  }
+
+  .transport-more.open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    /* Full-width row below the transport, whatever it wrapped after. */
+    order: 1;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+
+  .transport-more.open .transport-group.right {
+    margin-left: 0;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .project-name {
+    width: 120px;
+  }
+
+  /* The scene column is sticky, so every pixel it takes is a pixel of grid
+     the performer never gets back. */
+  .grid .scene-head input {
+    width: 78px;
+  }
+
+  .scene-trigger {
+    padding: 6px 8px;
+  }
+
+  .chain-editor {
+    max-height: 60%;
+  }
+
+  .code-editor {
+    min-height: 120px;
+  }
+
+  /* Hints that recite keyboard shortcuts are several lines of no use on a
+     phone. The ones that state a fact about what is open stay. */
+  .hint.keys {
+    display: none;
   }
 }

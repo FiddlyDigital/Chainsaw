@@ -91,6 +91,34 @@ text field.
 | `Ctrl/Cmd + S`     | Save (`Shift` for save as)                        |
 | `Ctrl/Cmd + O`     | Open                                              |
 
+## On a phone
+
+The three columns are a desktop luxury. Below 760px wide — or on anything
+short enough that stacking two panes would leave each of them a couple of
+centimetres, which is every phone in landscape — the layout shows **one pane at
+a time**, switched from a bar along the bottom. All three stay mounted, so
+switching panes costs no scroll position, no editor undo history and no
+CodeMirror state; the two you are not looking at are `visibility: hidden`,
+which also takes them out of the tab order and the accessibility tree.
+
+Opening something steers that bar for you: tapping a slot brings up the editor,
+tapping a chain brings up the stage the chain editor sits in. Otherwise a tap
+in the project panel would look like it did nothing.
+
+The transport keeps play, stop, the position readout and the live pills. The
+other eleven controls fold into a tray behind `⋯`, because at a phone's width
+they wrap into four rows and leave nothing for the grid. On a wide screen that
+tray is `display: contents` — it is not a box at all, and the bar is the same
+single flat row it has always been.
+
+Sizing is by input device (`pointer: coarse`) rather than by viewport, so a
+1024px tablet gets the same targets a phone does and a narrow desktop window
+does not. Fields go to 16px there, which is the threshold below which iOS
+Safari zooms the page on focus and never zooms back out. `e2e/mobile.spec.ts`
+drives the whole thing at 390×844 with touch input and asserts the properties
+that actually matter: nothing overflows sideways in any pane, nothing is too
+small to hit, and both the pen tool and block dragging work from a finger.
+
 ## The project file
 
 One `.chainsaw.json` document, validated on load and on every mutation against

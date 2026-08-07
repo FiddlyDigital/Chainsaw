@@ -59,87 +59,98 @@ export function ChainEditor() {
         <button onClick={() => setEditingChain(null)}>close</button>
       </header>
 
-      <table className="steps">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>slot</th>
-            <th>repeat</th>
-            <th>transpose</th>
-            <th>gain</th>
-            <th>cycles</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {chain.steps.map((step, index) => {
-            const slot = project.slots[step.slot]
-            return (
-              <tr key={index}>
-                <td className="num">{index}</td>
-                <td>
-                  <select value={step.slot} onChange={(event) => updateChainStep(chainId, index, { slot: event.target.value })}>
-                    {slotIds.map((id) => (
-                      <option key={id} value={id}>
-                        {id}
-                      </option>
-                    ))}
-                  </select>
-                  <button className="mini" onClick={() => setEditing(step.slot)} title="Edit this slot's code">
-                    ✎
-                  </button>
-                </td>
-                <td>
-                  <Stepper
-                    value={step.repeat}
-                    min={1}
-                    max={64}
-                    onChange={(repeat) => updateChainStep(chainId, index, { repeat })}
-                    label={`Repeat for step ${index}`}
-                  />
-                </td>
-                <td>
-                  <Stepper
-                    value={step.transpose}
-                    min={-48}
-                    max={48}
-                    onChange={(transpose) => updateChainStep(chainId, index, { transpose })}
-                    label={`Transpose for step ${index}`}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    className="tiny"
-                    step={0.05}
-                    min={-1}
-                    max={1}
-                    value={step.gainOffset}
-                    onChange={(event) => updateChainStep(chainId, index, { gainOffset: Number(event.target.value) })}
-                    aria-label={`Gain offset for step ${index}`}
-                  />
-                </td>
-                <td className="num">{slot ? (slotCycles(slot) * step.repeat).toFixed(2) : '—'}</td>
-                <td className="row-actions">
-                  <button className="mini" onClick={() => moveChainStep(chainId, index, index - 1)} disabled={index === 0}>
-                    ↑
-                  </button>
-                  <button
-                    className="mini"
-                    onClick={() => moveChainStep(chainId, index, index + 1)}
-                    disabled={index === chain.steps.length - 1}
-                  >
-                    ↓
-                  </button>
-                  <button className="mini" onClick={() => removeChainStep(chainId, index)} aria-label={`Remove step ${index}`}>
-                    ×
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      {/* Seven columns of steppers do not fit a phone; scroll them sideways
+          rather than letting the table push the whole layout wide. */}
+      <div className="steps-scroll">
+        <table className="steps">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>slot</th>
+              <th>repeat</th>
+              <th>transpose</th>
+              <th>gain</th>
+              <th>cycles</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {chain.steps.map((step, index) => {
+              const slot = project.slots[step.slot]
+              return (
+                <tr key={index}>
+                  <td className="num">{index}</td>
+                  <td>
+                    <select
+                      value={step.slot}
+                      onChange={(event) => updateChainStep(chainId, index, { slot: event.target.value })}
+                    >
+                      {slotIds.map((id) => (
+                        <option key={id} value={id}>
+                          {id}
+                        </option>
+                      ))}
+                    </select>
+                    <button className="mini" onClick={() => setEditing(step.slot)} title="Edit this slot's code">
+                      ✎
+                    </button>
+                  </td>
+                  <td>
+                    <Stepper
+                      value={step.repeat}
+                      min={1}
+                      max={64}
+                      onChange={(repeat) => updateChainStep(chainId, index, { repeat })}
+                      label={`Repeat for step ${index}`}
+                    />
+                  </td>
+                  <td>
+                    <Stepper
+                      value={step.transpose}
+                      min={-48}
+                      max={48}
+                      onChange={(transpose) => updateChainStep(chainId, index, { transpose })}
+                      label={`Transpose for step ${index}`}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      className="tiny"
+                      step={0.05}
+                      min={-1}
+                      max={1}
+                      value={step.gainOffset}
+                      onChange={(event) => updateChainStep(chainId, index, { gainOffset: Number(event.target.value) })}
+                      aria-label={`Gain offset for step ${index}`}
+                    />
+                  </td>
+                  <td className="num">{slot ? (slotCycles(slot) * step.repeat).toFixed(2) : '—'}</td>
+                  <td className="row-actions">
+                    <button className="mini" onClick={() => moveChainStep(chainId, index, index - 1)} disabled={index === 0}>
+                      ↑
+                    </button>
+                    <button
+                      className="mini"
+                      onClick={() => moveChainStep(chainId, index, index + 1)}
+                      disabled={index === chain.steps.length - 1}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      className="mini"
+                      onClick={() => removeChainStep(chainId, index)}
+                      aria-label={`Remove step ${index}`}
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="editor-actions">
         <button
