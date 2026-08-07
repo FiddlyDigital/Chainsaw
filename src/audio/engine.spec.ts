@@ -1,5 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { prune } from './engine'
+import { audible, prune } from './engine'
+
+/**
+ * What the scratch pad contributes to the mix. The scratch pattern plays
+ * alongside the tracks rather than instead of them, which is the whole point
+ * of having it — and every one of these is queued for a boundary by the caller,
+ * so none of them is heard mid-bar.
+ */
+describe('audible', () => {
+  it('stacks the scratch over the tracks', () => {
+    expect(audible(['a', 'b'], 'scratch', 'stack')).toEqual(['a', 'b', 'scratch'])
+  })
+
+  it('drops the tracks when the scratch is soloed', () => {
+    expect(audible(['a', 'b'], 'scratch', 'solo')).toEqual(['scratch'])
+  })
+
+  it('leaves the tracks alone when the scratch is muted', () => {
+    expect(audible(['a', 'b'], 'scratch', 'off')).toEqual(['a', 'b'])
+  })
+
+  it('never silences the set for want of a scratch pattern to solo', () => {
+    expect(audible(['a', 'b'], null, 'solo')).toEqual(['a', 'b'])
+    expect(audible(['a', 'b'], null, 'stack')).toEqual(['a', 'b'])
+  })
+
+  it('plays the scratch against silence when there are no tracks', () => {
+    expect(audible([], 'scratch', 'stack')).toEqual(['scratch'])
+    expect(audible([], 'scratch', 'solo')).toEqual(['scratch'])
+  })
+
+  it('does not disturb the array it was given', () => {
+    const tracks = ['a']
+    audible(tracks, 'scratch', 'stack')
+    expect(tracks).toEqual(['a'])
+  })
+})
 
 /**
  * `prune` bounds the scheduled-piece list. Without it a performance would grow

@@ -5,7 +5,7 @@
  * is written back so a project saved mid-set restores what was playing.
  */
 import { create } from 'zustand'
-import { Engine, type EngineStatus } from '../audio/engine'
+import { Engine, type EngineStatus, type ScratchMode } from '../audio/engine'
 import type { LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
@@ -34,6 +34,10 @@ export interface RuntimeStore {
   /** Chain currently open in the chain editor. */
   editingChain: string | null
   scratch: string
+  /** How the scratch pattern is mixed against the tracks. */
+  scratchMode: ScratchMode
+  /** Whether a scratch pattern is compiled and waiting, whatever the mode. */
+  scratchLive: boolean
   masterVolume: number
 
   setPanel: (panel: Panel) => void
@@ -53,6 +57,10 @@ export interface RuntimeStore {
   returnToArrangement: () => void
   /** Evaluate scratch-pad code straight away, the stock REPL behaviour. */
   evaluateScratch: (code: string) => Promise<void>
+  /** Mix the scratch layer in, out, or over everything else. */
+  setScratchMode: (mode: ScratchMode) => void
+  /** Drop the scratch pattern entirely. The code in the editor is untouched. */
+  clearScratch: () => void
   scratchError: string | null
 }
 
@@ -82,6 +90,8 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   editing: null,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
+  scratchMode: 'stack',
+  scratchLive: false,
   masterVolume: 0.8,
   scratchError: null,
 
@@ -145,12 +155,26 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     await engineRef.unlockAudio()
     try {
       await engineRef.setScratch(code)
-      set({ scratchError: null })
+      // Evaluating is a request to hear it. Muting is undone, but a solo the
+      // performer set up deliberately is left alone.
+      const mode = get().scratchMode === 'off' ? 'stack' : get().scratchMode
+      await engineRef.setScratchMode(mode)
+      set({ scratchError: null, scratchLive: code.trim().length > 0, scratchMode: mode })
       // Stock Strudel starts playing on evaluate; keep that reflex.
       if (!get().status.started) await engineRef.play()
     } catch (error) {
       set({ scratchError: error instanceof Error ? error.message : String(error) })
     }
+  },
+
+  setScratchMode(scratchMode) {
+    set({ scratchMode })
+    void getEngine().setScratchMode(scratchMode)
+  },
+
+  clearScratch() {
+    set({ scratchLive: false })
+    getEngine().clearScratch()
   },
 }))
 
