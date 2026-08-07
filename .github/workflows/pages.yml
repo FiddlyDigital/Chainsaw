@@ -33,13 +33,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The exact commit CI passed on, not whatever main has become in the
           # meantime.
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -52,7 +52,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # `enablement` turns Pages on for the repository if it is not already,
+      # so the first deploy does not fail on a settings toggle nobody flipped.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
