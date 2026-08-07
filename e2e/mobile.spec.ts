@@ -117,12 +117,17 @@ test('a scene fires from touch, and the arrangement can be edited by touch', asy
   await expect(block).toBeVisible()
 
   const before = await block.boundingBox()
-  await block.hover()
+  if (!before) throw new Error('the placement did not render')
+  // Grab near the left edge and drag by the block's own length — a bar is
+  // wider under a finger than under a mouse, so no pixel count here is safe.
+  const grabX = before.x + 10
+  const grabY = before.y + before.height / 2
+  await page.mouse.move(grabX, grabY)
   await page.mouse.down()
-  await page.mouse.move((before?.x ?? 0) + 98, (before?.y ?? 0) + 8, { steps: 8 })
+  await page.mouse.move(grabX + before.width, grabY, { steps: 8 })
   await page.mouse.up()
   const after = await block.boundingBox()
-  expect(after?.x ?? 0).toBeGreaterThan(before?.x ?? 0)
+  expect(after?.x ?? 0).toBeGreaterThan(before.x)
 })
 
 test('every control is big enough to hit', async ({ page }) => {
@@ -141,15 +146,70 @@ test('every control is big enough to hit', async ({ page }) => {
   expect(tooSmall).toEqual([])
 })
 
-test('the wide layout keeps all three panes and no pane bar', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
+test('the pane switcher reports what is happening in the pane you cannot see', async ({ page }) => {
   await page.goto('.')
+  await page.getByRole('button', { name: 'Play' }).tap()
 
-  await expect(page.locator('.pane-bar')).toBeHidden()
-  await expect(page.locator('.project-panel')).toBeVisible()
-  await expect(page.locator('.stage')).toBeVisible()
-  await expect(page.locator('.editor-panel')).toBeVisible()
-  // The tray is `display: contents` here, so its contents are simply in the bar.
-  await expect(page.getByRole('button', { name: 'save as' })).toBeVisible()
-  await expect(page.locator('.transport-toggle')).toBeHidden()
+  await expect(page.locator('.pane-mark.live')).toHaveCount(0)
+  await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').tap()
+
+  // Fire a scene, walk away from the stage, and the switcher still says so.
+  await paneButton(page, 'editor').tap()
+  await expect(page.locator('.pane-bar .pane-mark.live')).toBeVisible()
+
+  await page.locator('.pill.live').tap()
+  await expect(page.locator('.pane-mark.live')).toHaveCount(0)
+})
+
+test('a pattern can be typed without ever leaving the letter keyboard', async ({ page }) => {
+  await page.goto('.')
+  await paneButton(page, 'editor').tap()
+
+  const editor = page.locator('.code-editor .cm-content')
+  await editor.tap()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.press('Backspace')
+
+  // Every character here that is not a letter or a digit comes from the row.
+  const key = (label: string) =>
+    page.locator('.pattern-key', { hasText: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }).first()
+
+  await page.keyboard.type('s')
+  await key('(').tap()
+  await key('"').tap()
+  await page.keyboard.type('bd')
+  await key('*').tap()
+  await page.keyboard.type('4')
+  // Both brackets came in as pairs with the caret inside them; `→` is how a
+  // device with no arrow keys gets back out past the closers.
+  await key('→').tap()
+  await key('→').tap()
+  await key('.').tap()
+  await page.keyboard.type('gain')
+  await key('(').tap()
+  await page.keyboard.type('0.5')
+  await expect(editor).toHaveText('s("bd*4").gain(0.5)')
+
+  // And the run button is in reach of the same thumb.
+  await page.locator('.pattern-run').tap()
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  await expect(page.locator('.inline-error')).toHaveCount(0)
+})
+
+test.describe('the wide layout', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, hasTouch: false, isMobile: false })
+
+  test('keeps all three panes, no pane bar and no symbol row', async ({ page }) => {
+    await page.goto('.')
+
+    await expect(page.locator('.pane-bar')).toBeHidden()
+    await expect(page.locator('.project-panel')).toBeVisible()
+    await expect(page.locator('.stage')).toBeVisible()
+    await expect(page.locator('.editor-panel')).toBeVisible()
+    // The tray is `display: contents` here, so its contents are simply in the bar.
+    await expect(page.getByRole('button', { name: 'save as' })).toBeVisible()
+    await expect(page.locator('.transport-toggle')).toBeHidden()
+    // A keyboard needs no help typing brackets.
+    await expect(page.locator('.pattern-keys')).toHaveCount(0)
+  })
 })

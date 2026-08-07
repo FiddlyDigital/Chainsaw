@@ -35,6 +35,9 @@ body {
      pull-to-refresh or a rubber-band bounce mid-set. */
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
+  /* Replaced by the `:active` rules below, which fire immediately and match
+     the shape of the thing pressed. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -58,6 +61,22 @@ button {
 button:hover:not(:disabled) {
   border-color: var(--faint);
   background: #1e2432;
+}
+
+/*
+ * A finger never hovers, so without this every control is inert until whatever
+ * it did shows up somewhere else on screen. `:active` is the only feedback a
+ * touch device gets, and it has to be immediate.
+ */
+button:active:not(:disabled) {
+  border-color: var(--accent);
+  background: #232a3a;
+}
+
+.entry:active,
+.cell:active,
+.pattern-key:active {
+  filter: brightness(1.4);
 }
 
 button:disabled {
@@ -116,8 +135,9 @@ code {
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   /* `dvh` so a mobile browser's collapsing URL bar cannot leave the transport
-     or the pane switcher below the fold. */
-  height: 100dvh;
+     or the pane switcher below the fold, less whatever the on-screen keyboard
+     is covering on a browser that does not shrink the layout itself. */
+  height: calc(100dvh - var(--keyboard, 0px));
 }
 
 /* ── transport ─────────────────────────────────────────────── */
@@ -404,6 +424,9 @@ code {
 .grid-scroll {
   overflow: auto;
   flex: 1;
+  /* Both axes scroll independently of the page, and a swipe that runs out of
+     grid must not start scrolling something else. */
+  overscroll-behavior: contain;
 }
 
 .grid {
@@ -422,6 +445,11 @@ code {
   text-align: center;
   border-bottom: 1px solid var(--line);
   padding-bottom: 3px;
+  /* Which track a column is stays visible however far down the scenes go. */
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
 }
 
 .grid .scene-head {
@@ -431,7 +459,17 @@ code {
   display: flex;
   align-items: center;
   gap: 3px;
-  z-index: 1;
+  z-index: 2;
+  /* `border-spacing` leaves a 3px gutter around every cell, and a clip
+     scrolling underneath this column shows through it as a coloured sliver.
+     Bleed the background out far enough to cover the gutters. */
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+/* The corner belongs to both sticky edges, so it has to outrank each. */
+.grid thead .scene-head {
+  top: 0;
+  z-index: 3;
 }
 
 .grid .scene-head input {
@@ -547,6 +585,16 @@ code {
 .palette-label {
   color: var(--faint);
   font-size: 11px;
+  /* Stays put while the chips scroll past it. */
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  padding-right: 4px;
+  z-index: 1;
+}
+
+.palette-label.armed {
+  color: var(--accent);
 }
 
 .chip {
@@ -579,7 +627,8 @@ code {
 }
 
 .row-label {
-  width: 64px;
+  /* Set by the view, which also does hit-testing with it. */
+  width: var(--label-width, 64px);
   flex-shrink: 0;
   color: var(--dim);
   font-size: 11px;
@@ -825,6 +874,52 @@ code {
   color: var(--dim);
 }
 
+/* ── pattern keys (touch only) ─────────────────────────────── */
+
+/*
+ * Sits between the editor and the on-screen keyboard, so it must be the last
+ * thing in the panel and must not scroll away with the code.
+ */
+.pattern-keys {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+  flex-shrink: 0;
+}
+
+.pattern-keys-scroll {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  flex: 1;
+  /* The row is wider than the screen on purpose; hide the bar it scrolls on. */
+  scrollbar-width: none;
+}
+
+.pattern-keys-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.pattern-key {
+  flex: 0 0 auto;
+  min-width: 38px;
+  padding: 8px 0;
+  font-size: 16px;
+  text-align: center;
+  color: var(--text);
+}
+
+.pattern-run {
+  flex: 0 0 auto;
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  padding: 8px 14px;
+}
+
 /* ── pane switcher (narrow screens only) ───────────────────── */
 
 .pane-bar {
@@ -835,10 +930,30 @@ code {
 }
 
 .pane-bar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 9px 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* What is happening in a pane you cannot currently see. */
+.pane-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pane-mark.live {
+  background: var(--accent);
+}
+
+.pane-mark.bad {
+  background: var(--bad);
 }
 
 /* ── two columns: the editor moves under the stage ─────────── */
@@ -1074,22 +1189,70 @@ code {
     width: 120px;
   }
 
-  /* The scene column is sticky, so every pixel it takes is a pixel of grid
-     the performer never gets back. */
-  .grid .scene-head input {
-    width: 78px;
+  /*
+   * The scene column is sticky, so every pixel it holds is a pixel of grid the
+   * performer never gets back. The launch button becomes a tall thin bar the
+   * height of the row — the same target area in a third of the width, which is
+   * the shape Ableton's own scene column has always been — and the name gets
+   * only as much room as a name needs.
+   */
+  .scene-trigger {
+    align-self: stretch;
+    min-width: 0;
+    padding: 0 5px;
   }
 
-  .scene-trigger {
-    padding: 6px 8px;
+  .grid .scene-head input {
+    width: 68px;
+  }
+
+  .grid .scene-head .mini {
+    min-width: 26px;
+  }
+
+  .cell {
+    width: 92px;
+  }
+
+  /* One scrolling row of chains rather than four wrapped ones. */
+  .palette {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .palette > * {
+    flex: 0 0 auto;
   }
 
   .chain-editor {
     max-height: 60%;
   }
 
+  /* The symbol row is pinned to the bottom of the panel, so the panel itself
+     must not scroll — the code inside CodeMirror does. */
+  .editor-panel {
+    overflow: hidden;
+  }
+
   .code-editor {
-    min-height: 120px;
+    min-height: 90px;
+  }
+
+  /*
+   * A scene row is a launcher, not a form. Drop the field's chrome until it is
+   * being typed into: it reads as the row's name, still renames on a tap, and
+   * gives back the width the sticky column was taking from the grid.
+   */
+  .grid .scene-head input {
+    background: transparent;
+    border-color: transparent;
+    padding-left: 2px;
+  }
+
+  .grid .scene-head input:focus {
+    background: var(--bg);
+    border-color: var(--line);
   }
 
   /* Hints that recite keyboard shortcuts are several lines of no use on a

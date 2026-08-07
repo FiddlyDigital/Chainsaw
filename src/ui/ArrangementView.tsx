@@ -2,8 +2,18 @@ import { useMemo, useState } from 'react'
 import { chainTimeline, songCycles } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
+import { useCoarsePointer } from './viewport'
 
-const BAR_WIDTH = 26 // px
+/**
+ * Bar width, and the width of the track labels down the left.
+ *
+ * A tap resolves to a bar by dividing its x-coordinate by the first of these,
+ * so both live here rather than in the stylesheet, which reads them back as
+ * custom properties. A mouse can hit a 26px bar; a fingertip covers three of
+ * them, hence the wider one.
+ */
+const BARS = { fine: 26, coarse: 44 }
+const LABEL_WIDTH = 64
 
 interface Drag {
   track: number
@@ -37,6 +47,8 @@ export function ArrangementView() {
   const started = useRuntime((state) => state.status.started)
   const overrides = useRuntime((state) => state.overrides)
   const setEditingChain = useRuntime((state) => state.setEditingChain)
+
+  const BAR_WIDTH = useCoarsePointer() ? BARS.coarse : BARS.fine
 
   const [pen, setPen] = useState<string | null>(null)
   // A drag is previewed locally and written to the document once, on release.
@@ -101,7 +113,10 @@ export function ArrangementView() {
   return (
     <div className="arrangement">
       <div className="palette">
-        <span className="palette-label">chains</span>
+        {/* Doubles as the pen's status line. On a narrow screen the palette is
+            one scrolling row, and a hint tacked on the end of it would be off
+            the side of the screen exactly when it is needed. */}
+        <span className={`palette-label ${pen ? 'armed' : ''}`}>{pen ? <>place “{pen}” on a track</> : 'chains'}</span>
         {Object.entries(project.chains).map(([id, chain]) => (
           <button
             key={id}
@@ -114,11 +129,13 @@ export function ArrangementView() {
           </button>
         ))}
         {Object.keys(project.chains).length === 0 && <span className="hint">no chains yet — make one in the panel</span>}
-        {pen && <span className="hint">click a track row to place “{pen}”</span>}
       </div>
 
       <div className="timeline-scroll">
-        <div className="timeline" style={{ width: totalBars * BAR_WIDTH + 64 }}>
+        <div
+          className="timeline"
+          style={{ width: totalBars * BAR_WIDTH + LABEL_WIDTH, ['--label-width' as string]: `${LABEL_WIDTH}px` }}
+        >
           <div className="ruler">
             <div className="row-label" />
             <div className="ruler-bars">
@@ -182,7 +199,9 @@ export function ArrangementView() {
             )
           })}
 
-          {started && <div className="playhead" style={{ left: 64 + (bar % totalBars) * BAR_WIDTH }} aria-hidden="true" />}
+          {started && (
+            <div className="playhead" style={{ left: LABEL_WIDTH + (bar % totalBars) * BAR_WIDTH }} aria-hidden="true" />
+          )}
         </div>
       </div>
       {lastError && <p className="inline-error">{lastError}</p>}

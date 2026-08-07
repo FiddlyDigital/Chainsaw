@@ -11,7 +11,7 @@ import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, placeholder as placeholderExt } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { tags } from '@lezer/highlight'
-import { useEffect, useRef } from 'react'
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 
 const highlight = HighlightStyle.define([
   { tag: tags.string, color: '#9ae6b4' },
@@ -39,6 +39,19 @@ const theme = EditorView.theme(
   { dark: true },
 )
 
+/** What the symbol row on a touch device needs to be able to do to the editor. */
+export interface CodeEditorHandle {
+  /**
+   * Type `text` at the caret, then walk the caret back `back` characters —
+   * which is how a paired bracket leaves it between the two.
+   */
+  insert: (text: string, back?: number) => void
+  /** Step the caret over whatever is to its right, closing bracket included. */
+  skip: () => void
+  /** The current text, without waiting for a change event to have landed. */
+  read: () => string
+}
+
 export interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
@@ -46,11 +59,43 @@ export interface CodeEditorProps {
   onEvaluate: (value: string) => void
   placeholder?: string
   ariaLabel: string
+  ref?: Ref<CodeEditorHandle>
 }
 
-export function CodeEditor({ value, onChange, onEvaluate, placeholder, ariaLabel }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, onEvaluate, placeholder, ariaLabel, ref }: CodeEditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      insert(text, back = 0) {
+        const instance = view.current
+        if (!instance) return
+        const { from, to } = instance.state.selection.main
+        instance.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from + text.length - back },
+          scrollIntoView: true,
+        })
+        // Inserting from a button moves focus to the button; give it back, or
+        // the on-screen keyboard closes after every symbol.
+        instance.focus()
+      },
+      skip() {
+        const instance = view.current
+        if (!instance) return
+        const { head } = instance.state.selection.main
+        instance.dispatch({
+          selection: { anchor: Math.min(head + 1, instance.state.doc.length) },
+          scrollIntoView: true,
+        })
+        instance.focus()
+      },
+      read: () => view.current?.state.doc.toString() ?? '',
+    }),
+    [],
+  )
   // Kept in refs so the editor is created once and never loses undo history.
   const change = useRef(onChange)
   const evaluate = useRef(onEvaluate)

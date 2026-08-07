@@ -5,8 +5,10 @@ import { slotCycles } from '../audio/timing'
 import { referencesToSlot } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { getEngine, useRuntime } from '../store/runtime'
-import { CodeEditor } from './CodeEditor'
+import { CodeEditor, type CodeEditorHandle } from './CodeEditor'
 import { CommittedInput } from './CommittedInput'
+import { PatternKeys } from './PatternKeys'
+import { useCoarsePointer } from './viewport'
 
 /** Delay before an auto-committing editor pushes an edit into the project. */
 const AUTO_COMMIT_MS = 300
@@ -33,6 +35,8 @@ function ScratchPad() {
   const setEditing = useRuntime((state) => state.setEditing)
   const project = useProject((state) => state.project)
   const createSlot = useProject((state) => state.createSlot)
+  const coarse = useCoarsePointer()
+  const editor = useRef<CodeEditorHandle>(null)
   // The editor owns the text; nothing here renders it, so a ref is enough and
   // typing costs no re-renders.
   const draft = useRef(scratch)
@@ -71,6 +75,7 @@ function ScratchPad() {
         </button>
       </header>
       <CodeEditor
+        ref={editor}
         value={scratch}
         onChange={(code) => {
           draft.current = code
@@ -83,6 +88,13 @@ function ScratchPad() {
         placeholder={'s("bd*4, hh*8")'}
       />
       {scratchError && <p className="inline-error">{scratchError}</p>}
+      {coarse && (
+        <PatternKeys
+          editor={editor}
+          onRun={() => void evaluateScratch(editor.current?.read() ?? draft.current)}
+          runLabel="play"
+        />
+      )}
     </section>
   )
 }
@@ -93,6 +105,9 @@ function SlotEditor({ slotId }: { slotId: string }) {
   const renameSlot = useProject((state) => state.renameSlot)
   const setEditing = useRuntime((state) => state.setEditing)
   const errors = useRuntime((state) => state.status.errors)
+
+  const coarse = useCoarsePointer()
+  const editor = useRef<CodeEditorHandle>(null)
 
   const slot = project.slots[slotId]
   // The editor is the document's home while it is open; `draft` only carries
@@ -217,6 +232,7 @@ function SlotEditor({ slotId }: { slotId: string }) {
       </div>
 
       <CodeEditor
+        ref={editor}
         value={slot.code}
         onChange={onChange}
         onEvaluate={commit}
@@ -224,6 +240,9 @@ function SlotEditor({ slotId }: { slotId: string }) {
         placeholder={slot.instrument ? 'note("c e g")' : 's("bd*4")'}
       />
       {error && <p className="inline-error">{error}</p>}
+      {coarse && (
+        <PatternKeys editor={editor} onRun={() => commit(editor.current?.read() ?? draft.current)} runLabel="commit" />
+      )}
       {slot.instrument && (
         <p className="hint footnote">
           composed with instrument <code>{slot.instrument}</code>: {project.instruments[slot.instrument]?.base}
