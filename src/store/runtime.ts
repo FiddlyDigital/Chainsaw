@@ -41,6 +41,12 @@ export interface RuntimeStore {
   panel: Panel
   /** Which single column is shown on a narrow screen. */
   pane: Pane
+  /**
+   * Bar width in the arrangement, in pixels, or null to follow the pointer
+   * type. View state rather than document state: how far you happen to be
+   * zoomed in is not part of the song.
+   */
+  arrangementBarWidth: number | null
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
   /** Chain currently open in the chain editor. */
@@ -59,6 +65,7 @@ export interface RuntimeStore {
 
   setPanel: (panel: Panel) => void
   setPane: (pane: Pane) => void
+  setArrangementBarWidth: (px: number | null) => void
   setEditing: (slot: string | null) => void
   setEditingChain: (chain: string | null) => void
   setScratch: (code: string) => void
@@ -115,6 +122,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   autoAdvance: false,
   panel: 'grid',
   pane: 'stage',
+  arrangementBarWidth: null,
   editing: null,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
@@ -127,6 +135,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   setPanel: (panel) => set({ panel, pane: 'stage' }),
   setPane: (pane) => set({ pane }),
+  setArrangementBarWidth: (arrangementBarWidth) => set({ arrangementBarWidth }),
   // Opening something for editing brings its editor on screen. On a wide
   // layout the pane is inert and this changes nothing; on a narrow one it is
   // the difference between tapping a slot and appearing to do nothing.

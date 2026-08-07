@@ -269,6 +269,57 @@ test('a hand-triggered cell stops the follow', async ({ page }) => {
   await expect(page.locator('.pill.live')).not.toContainText('drop')
 })
 
+test('the arrangement zooms, and placements stay where they are', async ({ page }) => {
+  await page.goto('.')
+  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
+
+  const block = page.locator('.track-row').nth(0).locator('.block').first()
+  const width = async () => (await block.boundingBox())?.width ?? 0
+  /** A ruler tick is exactly one bar wide, so it is the honest unit. */
+  const barWidth = async () => (await page.locator('.tick').first().boundingBox())!.width
+  /** How many bars the block covers, according to the ruler beside it. */
+  const bars = async () => ((await width()) + 2) / (await barWidth())
+
+  const before = await width()
+  const length = await bars()
+  expect(length).toBeCloseTo(Math.round(length), 5)
+
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  const zoomedIn = await width()
+  expect(zoomedIn).toBeGreaterThan(before)
+
+  await page.getByRole('button', { name: 'Zoom out' }).click()
+  // Back to the same step it started on.
+  expect(await width()).toBeCloseTo(before, 0)
+
+  // Zooming all the way out still leaves the block on its own bar, and the
+  // ruler agrees with it: dropping a chain lands where it is aimed.
+  for (let i = 0; i < 10; i += 1) {
+    const out = page.getByRole('button', { name: 'Zoom out' })
+    if (await out.isDisabled()) break
+    await out.click()
+  }
+  await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+  expect(await width()).toBeLessThan(before)
+  expect((await block.boundingBox())?.x).toBeCloseTo(
+    (await page.locator('.track-row').nth(0).locator('.lane').boundingBox())!.x,
+    0,
+  )
+
+  // The block still covers the same bars it did: the ruler and the placements
+  // scaled together rather than drifting apart.
+  expect(await bars()).toBeCloseTo(length, 5)
+
+  // Placing still resolves to the bar under the pointer at this zoom.
+  const bar = await barWidth()
+  await page.locator('.chip', { hasText: 'KEYS' }).click()
+  const lane = page.locator('.track-row').nth(5).locator('.lane')
+  await lane.click({ position: { x: bar * 3 + bar / 2, y: 8 } })
+  const placed = lane.locator('.block').first()
+  await expect(placed).toBeVisible()
+  expect((await placed.boundingBox())!.x - (await lane.boundingBox())!.x).toBeCloseTo(bar * 3, 0)
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

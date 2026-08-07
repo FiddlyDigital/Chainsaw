@@ -76,6 +76,46 @@ noise in aeroplane mode. Strudel's waveform and ZZFX synths are registered
 alongside them, so `sound("sawtooth")`, `note(...)`, and the whole effects chain
 work as normal.
 
+## Playing it
+
+**Every track has a mute and a solo**, next to its number in both the grid's
+column headings and the arrangement's row labels — needing to change pane to
+drop a track is exactly the wrong thing mid-set. Solo is exclusive: the moment
+anything is soloed, everything else drops out. Mute wins over solo on the same
+track, so a stray solo cannot resurrect a track you deliberately killed. Both
+are document state, so a set saved mid-performance restores what was killed,
+both are undoable, and both land on a boundary like every other change. The
+record is sparse — a track nobody has touched leaves no trace in the file.
+
+**Scenes can be reordered** with ↑/↓, and **`follow` walks the list**: a scene
+runs until its longest cell has had one full pass, then the next fires. The
+last scene holds rather than looping. Anything that is not a whole scene — one
+cell fired by hand, a track handed back, Esc — stops the follow, because there
+is no longer a scene to advance from.
+
+**The arrangement zooms** through discrete widths from 8px to 112px a bar,
+rather than a continuous factor: a button press should land somewhere
+predictable, and repeated multiplication drifts into fractional pixels that
+make the ruler and the blocks disagree about where a bar is.
+
+## MIDI
+
+Chainsaw owns the timeline, so it is the **master**: 24 clock ticks per quarter
+note, plus Start, Stop, Continue and Song Position, out to an output you pick
+in the transport. No notes and no controllers yet.
+
+Ticks are queued ahead with timestamps rather than fired off a timer — the
+browser delivers a timestamped MIDI message far more precisely than a
+JavaScript interval, and the queue survives the main thread being busy with a
+rebuild. Starting from the top is a bare Start; resuming mid-song is a Song
+Position followed by Continue, which is the difference between a receiver
+playing bar 1 and playing along with you.
+
+Access is requested when you pick an output rather than on load: asking for a
+permission nobody has shown interest in is how you get it denied for the
+session. The chosen port is not saved — a port id means nothing on another
+machine — so it needs picking again after a reload.
+
 ## The scratch pad
 
 The scratch pad is the stock Strudel REPL, kept intact: type an expression, hit
