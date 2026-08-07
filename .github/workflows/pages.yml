@@ -52,8 +52,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      # `enablement` turns Pages on for the repository if it is not already,
-      # so the first deploy does not fail on a settings toggle nobody flipped.
+      # Pages has to be turned on by a human once, in Settings → Pages, with
+      # the source set to "GitHub Actions". `enablement` asks this action to do
+      # it instead, and it is worth keeping for a fork whose owner has granted
+      # more, but it cannot work here: GITHUB_TOKEN can deploy to Pages with
+      # `pages: write` and still not create the site, which needs repo admin.
+      # Until someone flips that switch this step fails with
+      # "Resource not accessible by integration", and everything above it —
+      # including the build — will have passed.
       - uses: actions/configure-pages@v5
         with:
           enablement: true

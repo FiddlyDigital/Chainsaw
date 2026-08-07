@@ -158,6 +158,13 @@ Every push to `main` that passes CI publishes to GitHub Pages
 (`.github/workflows/pages.yml`). It waits on CI rather than running beside it,
 and builds the commit CI passed on rather than whatever `main` has become since.
 
+**One-time setup, by a repo admin:** Settings → Pages → Build and deployment →
+Source: **GitHub Actions**. The workflow cannot do this for you. `GITHUB_TOKEN`
+can deploy to Pages with `pages: write` but cannot create the site, which needs
+admin, so until the switch is flipped the deploy fails at `configure-pages` with
+"Resource not accessible by integration" — with the build already green above
+it. Re-run the Pages workflow afterwards and it publishes.
+
 Nothing about the build is Pages-specific. The app is built entirely
 base-relative — asset URLs, the manifest's `scope` and `start_url`, and the
 service worker's scope and precache list — so the same bundle works at a domain
