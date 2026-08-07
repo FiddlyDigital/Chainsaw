@@ -451,6 +451,7 @@ code {
   text-align: center;
   border-bottom: 1px solid var(--line);
   padding-bottom: 3px;
+  white-space: nowrap;
   /* Which track a column is stays visible however far down the scenes go. */
   position: sticky;
   top: 0;
@@ -485,6 +486,44 @@ code {
 .scene-trigger {
   color: var(--dim);
   padding: 1px 6px;
+}
+
+/* ── track mixer ───────────────────────────────────────────── */
+
+.track-mix {
+  display: inline-flex;
+  gap: 1px;
+  vertical-align: middle;
+}
+
+.track-number {
+  margin-right: 4px;
+}
+
+button.mini.mix {
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  color: var(--faint);
+}
+
+button.mini.mix:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+/* Red for gone, amber for solo — the colours a mixer already uses. */
+button.mini.mix.muted {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+button.mini.mix.soloed {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-2) 12%, transparent);
 }
 
 .scene-trigger.playing {
@@ -652,6 +691,10 @@ code {
   color: var(--accent);
   font-style: normal;
   font-size: 9px;
+}
+
+.row-label .track-mix {
+  margin-left: auto;
 }
 
 .ruler-bars {
@@ -995,6 +1038,14 @@ code {
     min-width: 32px;
     min-height: 32px;
     line-height: 1;
+  }
+
+  /* Two of these sit beside every track number, so they get the floor rather
+     than the full target size the rest of the mini buttons take. */
+  button.mini.mix {
+    padding: 4px 5px;
+    min-width: 24px;
+    min-height: 28px;
   }
 
   .source-link {

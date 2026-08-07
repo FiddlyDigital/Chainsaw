@@ -174,6 +174,40 @@ test('the scratch pad plays alongside the tracks, and can be muted or soloed', a
   expect(problems).toEqual([])
 })
 
+test('tracks can be muted and soloed, and it survives a save', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+  await page.getByRole('button', { name: 'Play' }).click()
+
+  const head = page.locator('.grid thead .track-head')
+  await head.nth(0).getByRole('button', { name: 'Mute track 1' }).click()
+  await expect(head.nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+
+  // Soloing another track is a separate state; the mute stays put.
+  await head.nth(2).getByRole('button', { name: 'Solo track 3' }).click()
+  await expect(head.nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
+  await expect(head.nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+
+  // The arrangement lists the same tracks and shows the same state.
+  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
+  await expect(page.locator('.track-row').nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
+  await expect(page.locator('.track-row').nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
+
+  // None of it stopped the transport.
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+
+  // It is document state, not runtime state, so it is in what gets persisted.
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('chainsaw.autosave.v1') ?? '{}').tracks), {
+      timeout: 5_000,
+    })
+    .toEqual({ '1': { muted: true }, '3': { soloed: true } })
+
+  expect(problems).toEqual([])
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

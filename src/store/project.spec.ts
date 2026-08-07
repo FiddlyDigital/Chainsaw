@@ -160,6 +160,49 @@ describe('track count', () => {
   })
 })
 
+describe('the track mixer', () => {
+  it('records a mute and validates', () => {
+    expect(store().setTrack(2, { muted: true })).toBe(true)
+    expect(project().tracks?.['2']).toEqual({ muted: true })
+    expect(validateProject(project()).ok).toBe(true)
+  })
+
+  it('keeps the record sparse: a track back at its defaults leaves no trace', () => {
+    store().setTrack(2, { muted: true })
+    store().setTrack(2, { soloed: true })
+    expect(project().tracks?.['2']).toEqual({ muted: true, soloed: true })
+
+    store().setTrack(2, { muted: false })
+    expect(project().tracks?.['2']).toEqual({ soloed: true })
+
+    store().setTrack(2, { soloed: false })
+    // The last flag off takes the whole record with it, so an untouched
+    // project never grows a `tracks` key at all.
+    expect(project().tracks).toBeUndefined()
+  })
+
+  it('drops every solo at once, leaving mutes alone', () => {
+    store().setTrack(1, { soloed: true })
+    store().setTrack(2, { soloed: true, muted: true })
+    expect(store().clearTrackSolos()).toBe(true)
+    expect(project().tracks?.['1']).toBeUndefined()
+    expect(project().tracks?.['2']).toEqual({ muted: true })
+  })
+
+  it('is undoable like any other edit', () => {
+    store().setTrack(3, { muted: true })
+    store().undo()
+    expect(project().tracks).toBeUndefined()
+  })
+
+  it('drops mixer state above a shrunken track count', () => {
+    store().setTrack(6, { muted: true })
+    expect(store().setMeta({ trackCount: 4 })).toBe(true)
+    expect(project().tracks).toBeUndefined()
+    expect(validateProject(project()).ok).toBe(true)
+  })
+})
+
 describe('undo and redo', () => {
   it('steps back and forward through edits', () => {
     store().createSlot('A1')

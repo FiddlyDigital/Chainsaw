@@ -83,11 +83,25 @@ export interface Scene {
   cells: Record<string, string>
 }
 
+/**
+ * A track's place in the mix.
+ *
+ * Both flags are optional and the record is sparse: a track nobody has touched
+ * is simply absent, so the mixer adds nothing to a document that does not use
+ * it and an older project loads unchanged.
+ */
+export interface TrackSettings {
+  muted?: boolean
+  soloed?: boolean
+}
+
 export interface Project {
   meta: Meta
   instruments: Record<string, Instrument>
   slots: Record<string, Slot>
   chains: Record<string, Chain>
+  /** Track number (as a string) -> mixer state. Sparse; absent means default. */
+  tracks?: Record<string, TrackSettings>
   arrangement: { tracks: Record<string, Placement[]> }
   grid: { scenes: Scene[] }
 }

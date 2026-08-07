@@ -12,7 +12,7 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
 import { demoProject, isValidId, makeSlot } from '../model/defaults'
-import type { Chain, ChainStep, Instrument, Meta, Placement, Project, Scene, Slot } from '../model/types'
+import type { Chain, ChainStep, Instrument, Meta, Placement, Project, Scene, Slot, TrackSettings } from '../model/types'
 import { formatErrors, validateProject } from '../model/validate'
 
 const UNDO_LIMIT = 100
@@ -35,6 +35,11 @@ export interface ProjectStore {
   markSaved: () => void
 
   setMeta: (patch: Partial<Meta>) => boolean
+
+  /** Patch a track's mixer state. Clearing every flag drops it from the document. */
+  setTrack: (track: number, patch: Partial<TrackSettings>) => boolean
+  /** Drop every solo at once — the way out when several are lit. */
+  clearTrackSolos: () => boolean
 
   upsertInstrument: (id: string, instrument: Instrument) => boolean
   removeInstrument: (id: string) => boolean
@@ -167,7 +172,41 @@ export const useProject = create<ProjectStore>()((set, get) => ({
         for (const key of Object.keys(draft.meta.lastSceneState?.cells ?? {})) {
           if (Number(key) > patch.trackCount) delete draft.meta.lastSceneState!.cells[key]
         }
+        for (const key of Object.keys(draft.tracks ?? {})) {
+          if (Number(key) > patch.trackCount) delete draft.tracks![key]
+        }
+        if (draft.tracks && Object.keys(draft.tracks).length === 0) delete draft.tracks
       }
+    })
+  },
+
+  setTrack(track, patch) {
+    return get().apply((draft) => {
+      const key = String(track)
+      const next = { ...draft.tracks?.[key], ...patch }
+      // Keep the record sparse: a track back at its defaults leaves no trace in
+      // the document, so the mixer costs nothing to a project that ignores it.
+      for (const [name, value] of Object.entries(next)) {
+        if (!value) delete next[name as keyof typeof next]
+      }
+      if (Object.keys(next).length === 0) {
+        if (draft.tracks) delete draft.tracks[key]
+        if (draft.tracks && Object.keys(draft.tracks).length === 0) delete draft.tracks
+        return
+      }
+      draft.tracks ??= {}
+      draft.tracks[key] = next
+    })
+  },
+
+  clearTrackSolos() {
+    return get().apply((draft) => {
+      for (const [key, settings] of Object.entries(draft.tracks ?? {})) {
+        if (!settings.soloed) continue
+        delete settings.soloed
+        if (Object.keys(settings).length === 0) delete draft.tracks![key]
+      }
+      if (draft.tracks && Object.keys(draft.tracks).length === 0) delete draft.tracks
     })
   },
 

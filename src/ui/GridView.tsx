@@ -3,6 +3,7 @@ import { refTimeline } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
 import { CommittedInput } from './CommittedInput'
+import { TrackMix } from './TrackMix'
 
 /**
  * Session view (PRD §8.5): columns are tracks, rows are scenes, Ableton's way
@@ -51,12 +52,19 @@ export function GridView() {
               <th className="scene-head">scenes</th>
               {tracks.map((track) => (
                 <th key={track} className="track-head">
-                  <span>{track}</span>
-                  {overrides[track] && (
-                    <button className="mini" onClick={() => clearTrack(track)} title="Hand this track back to the arrangement">
-                      ×
-                    </button>
-                  )}
+                  <span className="track-number">
+                    {track}
+                    {overrides[track] && (
+                      <button
+                        className="mini"
+                        onClick={() => clearTrack(track)}
+                        title="Hand this track back to the arrangement"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                  <TrackMix track={track} />
                 </th>
               ))}
             </tr>

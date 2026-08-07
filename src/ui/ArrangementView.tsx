@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { chainTimeline, songCycles } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
+import { TrackMix } from './TrackMix'
 import { useCoarsePointer } from './viewport'
 
 /**
@@ -13,7 +14,8 @@ import { useCoarsePointer } from './viewport'
  * them, hence the wider one.
  */
 const BARS = { fine: 26, coarse: 44 }
-const LABEL_WIDTH = 64
+/** Wide enough for the track number, its live marker and its mute/solo. */
+const LABEL_WIDTH = 92
 
 interface Drag {
   track: number
@@ -154,6 +156,7 @@ export function ArrangementView() {
                 <div className="row-label">
                   {track}
                   {overrides[track] && <em title="A live scene is overriding this track">live</em>}
+                  <TrackMix track={track} />
                 </div>
                 <div
                   className="lane"

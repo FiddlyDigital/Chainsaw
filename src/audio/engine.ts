@@ -13,7 +13,7 @@
  */
 import { Cyclist, stack } from '@strudel/core'
 import { getAudioContext, initAudio, webaudioOutput } from '@strudel/webaudio'
-import type { Project, Quantize } from '../model/types'
+import type { Project, Quantize, TrackSettings } from '../model/types'
 import { PatternError, compile, compileSlot, initPatternScope } from './compile'
 import { type Piece, type StrudelPattern, pieces, silence, timelinePattern } from './patterns'
 import { type LiveOverride, resolveTracks } from './timeline'
@@ -41,6 +41,25 @@ export type ScratchMode = 'off' | 'stack' | 'solo'
 export function audible<T>(tracks: T[], scratch: T | null, mode: ScratchMode): T[] {
   if (!scratch || mode === 'off') return tracks
   return mode === 'solo' ? [scratch] : [...tracks, scratch]
+}
+
+/**
+ * Whether a track should be heard.
+ *
+ * Solo is exclusive rather than additive-to-mute: the moment anything is
+ * soloed, everything that is not drops out. Mute still wins over solo on the
+ * same track, so a soloed track that is also muted stays silent — which is
+ * what every mixer does, and what stops a stray solo from resurrecting a track
+ * the performer deliberately killed.
+ */
+export function trackAudible(settings: TrackSettings | undefined, anySoloed: boolean): boolean {
+  if (settings?.muted) return false
+  return anySoloed ? Boolean(settings?.soloed) : true
+}
+
+/** Whether any track in the project is soloed. */
+export function anySoloed(tracks: Record<string, TrackSettings> | undefined): boolean {
+  return Object.values(tracks ?? {}).some((settings) => settings.soloed)
 }
 
 export interface EngineStatus {
@@ -218,10 +237,14 @@ export class Engine {
     const errors: Record<string, string> = {}
     const tracks = resolveTracks(project, this.overrides)
     const trackPatterns: StrudelPattern[] = []
+    const soloing = anySoloed(project.tracks)
 
-    for (const [, track] of tracks) {
+    for (const [number, track] of tracks) {
       const { timeline, offset } = track
       if (timeline.loop <= 0 || timeline.segments.length === 0) continue
+      // A muted track is still compiled below, so its slots keep reporting
+      // their errors and unmuting costs no recompile — it just is not stacked.
+      const heard = trackAudible(project.tracks?.[String(number)], soloing)
       const entries = []
       for (const segment of timeline.segments) {
         try {
@@ -235,7 +258,7 @@ export class Engine {
           else errors[`slot ${segment.slot}`] = String(error)
         }
       }
-      if (entries.length) trackPatterns.push(timelinePattern(entries, timeline.loop, offset))
+      if (entries.length && heard) trackPatterns.push(timelinePattern(entries, timeline.loop, offset))
     }
     // Every track is still compiled under `solo`, so its errors are still
     // reported and coming out of solo needs no recompile.

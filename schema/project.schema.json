@@ -112,6 +112,18 @@
         }
       }
     },
+    "tracks": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/trackKey" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "muted": { "type": "boolean" },
+          "soloed": { "type": "boolean" }
+        }
+      }
+    },
     "arrangement": {
       "type": "object",
       "required": ["tracks"],
