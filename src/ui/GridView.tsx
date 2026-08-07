@@ -22,6 +22,8 @@ export function GridView() {
   const overrides = useRuntime((state) => state.overrides)
   const activeScene = useRuntime((state) => state.activeScene)
   const triggerScene = useRuntime((state) => state.triggerScene)
+  const autoAdvance = useRuntime((state) => state.autoAdvance)
+  const setAutoAdvance = useRuntime((state) => state.setAutoAdvance)
   const triggerCell = useRuntime((state) => state.triggerCell)
   const clearTrack = useRuntime((state) => state.clearTrack)
   const setEditing = useRuntime((state) => state.setEditing)
@@ -154,6 +156,10 @@ export function GridView() {
       </div>
       <div className="grid-actions">
         <button onClick={() => addScene(nextSceneName(project.grid.scenes.map((scene) => scene.name)))}>+ scene</button>
+        <label className="check" title="When a scene has played through, fire the next one. The last scene holds.">
+          <input type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
+          follow
+        </label>
         <span className="hint keys">
           click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc returns to the
           arrangement

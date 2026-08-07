@@ -7,7 +7,7 @@
  * the hard part of the system unit-testable without an audio context.
  * `audio/patterns.ts` turns a timeline into something that makes noise.
  */
-import type { Project } from '../model/types'
+import type { Project, Scene } from '../model/types'
 import { barToCycle, quantum, slotCycles } from './timing'
 
 /** A slot together with the per-chain-step overrides that apply to this playing of it. */
@@ -94,6 +94,22 @@ export function refTimeline(project: Project, ref: string): Timeline {
   }
   if (project.chains[ref]) return chainTimeline(project, ref)
   return EMPTY_TIMELINE
+}
+
+/**
+ * How long a scene runs before it has played through, in cycles.
+ *
+ * Its longest cell: the scene is done when the last of its clips has had one
+ * full pass, so nothing is cut off part-way. A scene with nothing in it — or
+ * with only references that no longer resolve — returns 0, which callers read
+ * as "no length", not "advance immediately".
+ */
+export function sceneCycles(project: Project, scene: Scene): number {
+  let longest = 0
+  for (const ref of Object.values(scene.cells)) {
+    longest = Math.max(longest, refTimeline(project, ref).loop)
+  }
+  return longest
 }
 
 /**

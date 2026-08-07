@@ -136,9 +136,13 @@ test('every control is big enough to hit', async ({ page }) => {
 
   // 28px is below the usual 44px guidance, but this is a tracker: the whole
   // point is dense. It is the floor at which a target stops being a coin toss.
+  //
+  // A checkbox inside a label is measured by its label, because the text
+  // toggles it too and that is the area a thumb actually has to find.
   const tooSmall = await page.evaluate(() =>
     [...document.querySelectorAll('button, a, select, input[type="checkbox"]')]
-      .map((element) => ({ element, box: element.getBoundingClientRect() }))
+      .map((element) => ({ element, target: element.closest('label') ?? element }))
+      .map(({ element, target }) => ({ element, box: target.getBoundingClientRect() }))
       .filter(({ box }) => box.width > 0 && box.height > 0)
       .filter(({ box }) => box.height < 28 || box.width < 18)
       .map(({ element, box }) => `${element.className || element.tagName} ${Math.round(box.width)}×${Math.round(box.height)}`),

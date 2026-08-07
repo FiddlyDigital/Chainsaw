@@ -229,6 +229,46 @@ test('scenes can be reordered', async ({ page }) => {
   await expect(dropRow.locator('.cell:not(.empty)')).toHaveCount(4)
 })
 
+test('follow walks the scene list and holds on the last', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+
+  // Shorten the bar so the whole walk takes seconds rather than a minute.
+  await page.getByLabel('bpm').fill('240')
+  await page.getByRole('checkbox', { name: 'follow' }).check()
+  await page.getByRole('button', { name: 'Play' }).click()
+
+  // Start at the top; the follow takes it from there.
+  await page.locator('.grid tbody tr').nth(0).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  await expect(page.locator('.pill.live')).toContainText('drop', { timeout: 20_000 })
+  await expect(page.locator('.pill.live')).toContainText('break', { timeout: 20_000 })
+
+  // The end of the list holds rather than looping or dropping the overrides.
+  await page.waitForTimeout(4_000)
+  await expect(page.locator('.pill.live')).toContainText('break')
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+
+  expect(problems).toEqual([])
+})
+
+test('a hand-triggered cell stops the follow', async ({ page }) => {
+  await page.goto('.')
+  await page.getByLabel('bpm').fill('240')
+  await page.getByRole('checkbox', { name: 'follow' }).check()
+  await page.getByRole('button', { name: 'Play' }).click()
+  await page.locator('.grid tbody tr').nth(0).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Firing one cell is no longer "a scene", so there is nothing to advance
+  // from and the list stops walking.
+  await page.locator('.grid tbody tr').nth(1).locator('.cell').first().click()
+  await expect(page.locator('.pill.live')).not.toContainText('intro')
+  await page.waitForTimeout(4_000)
+  await expect(page.locator('.pill.live')).not.toContainText('drop')
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

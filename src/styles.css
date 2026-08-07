@@ -1086,13 +1086,16 @@ button.mini.mix.soloed {
   }
 
   input[type='checkbox'] {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
+  /* The label is the target — the text toggles it too — so it is the label
+     that has to be big enough to hit, not the box. */
   .check {
     gap: 6px;
-    padding: 4px 0;
+    padding: 5px 2px;
+    min-height: 32px;
   }
 
   .field.volume input {

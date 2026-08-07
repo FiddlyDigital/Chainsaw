@@ -45,6 +45,37 @@ export function useAutosave(): void {
   }, [])
 }
 
+/**
+ * How far ahead of a scene's end to ask for the next one, in cycles.
+ *
+ * The trigger is quantized like any other, so it has to be asked for *inside*
+ * the boundary it should land on, not at it — request it exactly on the end and
+ * the quantizer rounds up to the following bar and leaves a gap. Small enough
+ * that it cannot reach back past an earlier boundary, comfortably larger than
+ * the frame that notices it is due.
+ */
+const FOLLOW_LEAD_CYCLES = 0.05
+
+/**
+ * Fire the next scene when the current one has played through.
+ *
+ * Subscribing to the transport rather than running a timer of its own means
+ * this cannot disagree with the position everything else is reading. The store
+ * decides *when* a scene is done — `sceneEndsAt`, computed once when the scene
+ * was triggered — so all this does is notice the moment arriving.
+ */
+export function useSceneFollow(): void {
+  useEffect(
+    () =>
+      useRuntime.subscribe((state) => {
+        if (!state.autoAdvance || !state.status.started) return
+        if (state.sceneEndsAt === null) return
+        if (state.status.cycle >= state.sceneEndsAt - FOLLOW_LEAD_CYCLES) state.advanceScene()
+      }),
+    [],
+  )
+}
+
 function isTyping(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
   if (!element) return false

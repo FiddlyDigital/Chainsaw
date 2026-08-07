@@ -8,7 +8,7 @@ import { create } from 'zustand'
 import { Engine, type EngineStatus, type ScratchMode } from '../audio/engine'
 import type { MidiOutputPort } from '../audio/midi'
 import { midiOutput, midiOutputs, midiSupported, onMidiPortsChanged, requestMidiAccess } from '../audio/midiAccess'
-import type { LiveOverride } from '../audio/timeline'
+import { sceneCycles, type LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
 
@@ -28,6 +28,16 @@ export interface RuntimeStore {
   overrides: Record<number, LiveOverride>
   /** Name of the scene triggered whole, when the overrides still match it. */
   activeScene: string | null
+  /** Index of that scene, which is what auto-advance steps along. */
+  activeSceneIndex: number | null
+  /**
+   * Absolute cycle at which the active scene has played through, or null when
+   * nothing is due to follow it — no scene, an empty one, or the end of the
+   * list. Auto-advance watches this and nothing else.
+   */
+  sceneEndsAt: number | null
+  /** Fire the next scene when this one has played through. */
+  autoAdvance: boolean
   panel: Panel
   /** Which single column is shown on a narrow screen. */
   pane: Pane
@@ -59,6 +69,9 @@ export interface RuntimeStore {
   stop: () => void
 
   triggerScene: (index: number) => void
+  setAutoAdvance: (on: boolean) => void
+  /** Step to the next scene. A no-op at the end of the list, which holds. */
+  advanceScene: () => void
   triggerCell: (track: number, ref: string) => void
   clearTrack: (track: number) => void
   returnToArrangement: () => void
@@ -97,6 +110,9 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
   overrides: {},
   activeScene: null,
+  activeSceneIndex: null,
+  sceneEndsAt: null,
+  autoAdvance: false,
   panel: 'grid',
   pane: 'stage',
   editing: null,
@@ -144,7 +160,28 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     for (const [track, ref] of Object.entries(scene.cells)) {
       overrides[Number(track)] = { ref, startCycle: at }
     }
+    // A scene with no length has nothing to wait for, so it holds rather than
+    // advancing straight past itself.
+    const length = sceneCycles(project, scene)
+    set({ activeSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
     commit(set, overrides, scene.name)
+  },
+
+  setAutoAdvance(autoAdvance) {
+    set({ autoAdvance })
+  },
+
+  advanceScene() {
+    const index = get().activeSceneIndex
+    if (index === null) return
+    const scenes = useProject.getState().project.grid.scenes
+    if (index + 1 >= scenes.length) {
+      // End of the list: hold the last scene and stop looking. Triggering
+      // anything by hand starts the follow off again.
+      set({ sceneEndsAt: null })
+      return
+    }
+    get().triggerScene(index + 1)
   },
 
   triggerCell(track, ref) {
@@ -222,7 +259,10 @@ function commit(
   overrides: Record<number, LiveOverride>,
   activeScene: string | null,
 ) {
-  set({ overrides, activeScene })
+  // Anything that is not a whole scene breaks the follow — a single cell, a
+  // track handed back, a return to the arrangement. There is no longer a scene
+  // playing, so there is nothing to advance from.
+  set(activeScene === null ? { overrides, activeScene, activeSceneIndex: null, sceneEndsAt: null } : { overrides, activeScene })
   void getEngine().setOverrides(overrides)
   const cells: Record<string, string> = {}
   for (const [track, override] of Object.entries(overrides)) cells[track] = override.ref
