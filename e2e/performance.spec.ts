@@ -208,6 +208,27 @@ test('tracks can be muted and soloed, and it survives a save', async ({ page }) 
   expect(problems).toEqual([])
 })
 
+test('scenes can be reordered', async ({ page }) => {
+  await page.goto('.')
+  const names = () => page.locator('.grid tbody .scene-head input').evaluateAll((inputs) => inputs.map((i) => i.value))
+
+  expect(await names()).toEqual(['intro', 'drop', 'break'])
+
+  await page.getByRole('button', { name: 'Move scene break up' }).click()
+  expect(await names()).toEqual(['intro', 'break', 'drop'])
+
+  await page.getByRole('button', { name: 'Move scene intro down' }).click()
+  expect(await names()).toEqual(['break', 'intro', 'drop'])
+
+  // The ends of the list offer nothing to press.
+  await expect(page.getByRole('button', { name: 'Move scene break up' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Move scene drop down' })).toBeDisabled()
+
+  // A cell moved with its scene: "drop" still has its four clips.
+  const dropRow = page.locator('.grid tbody tr').nth(2)
+  await expect(dropRow.locator('.cell:not(.empty)')).toHaveCount(4)
+})
+
 test('bad code is reported inline and does not take the transport down', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()

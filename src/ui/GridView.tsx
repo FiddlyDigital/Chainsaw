@@ -16,6 +16,7 @@ export function GridView() {
   const addScene = useProject((state) => state.addScene)
   const removeScene = useProject((state) => state.removeScene)
   const renameScene = useProject((state) => state.renameScene)
+  const moveScene = useProject((state) => state.moveScene)
   const setCell = useProject((state) => state.setCell)
 
   const overrides = useRuntime((state) => state.overrides)
@@ -85,9 +86,31 @@ export function GridView() {
                     onCommit={(name) => renameScene(index, name)}
                     ariaLabel={`Scene ${index + 1} name`}
                   />
-                  <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
-                    ×
-                  </button>
+                  {/* Grouped so a narrow screen can drop them onto a second
+                      line rather than widening the sticky column. */}
+                  <span className="scene-actions">
+                    <button
+                      className="mini"
+                      onClick={() => moveScene(index, index - 1)}
+                      disabled={index === 0}
+                      aria-label={`Move scene ${scene.name} up`}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="mini"
+                      onClick={() => moveScene(index, index + 1)}
+                      disabled={index === project.grid.scenes.length - 1}
+                      aria-label={`Move scene ${scene.name} down`}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
+                    <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
+                      ×
+                    </button>
+                  </span>
                 </th>
                 {tracks.map((track) => {
                   const ref = scene.cells[String(track)]

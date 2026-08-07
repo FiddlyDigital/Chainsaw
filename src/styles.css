@@ -488,6 +488,13 @@ code {
   padding: 1px 6px;
 }
 
+.scene-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+}
+
 /* ── track mixer ───────────────────────────────────────────── */
 
 .track-mix {
@@ -1265,6 +1272,25 @@ button.mini.mix.soloed {
 
   .grid .scene-head .mini {
     min-width: 26px;
+  }
+
+  /*
+   * Reorder and delete drop under the name rather than widening the sticky
+   * column, which is the one place on this screen there is no width to give.
+   * The minimum is what keeps the launch button and the name on one line
+   * together: a wrapping flex box in a table cell is sized from its widest
+   * item, not its widest line, so without it all three end up stacked.
+   */
+  .grid tbody .scene-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-width: 98px;
+  }
+
+  .scene-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
   }
 
   .cell {

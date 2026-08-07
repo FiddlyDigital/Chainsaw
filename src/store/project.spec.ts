@@ -160,6 +160,43 @@ describe('track count', () => {
   })
 })
 
+describe('scene order', () => {
+  const names = () => project().grid.scenes.map((scene) => scene.name)
+
+  beforeEach(() => {
+    store().addScene('one')
+    store().addScene('two')
+    store().addScene('three')
+  })
+
+  it('moves a scene up and down the list', () => {
+    expect(store().moveScene(2, 0)).toBe(true)
+    expect(names()).toEqual(['three', 'one', 'two'])
+    expect(store().moveScene(0, 1)).toBe(true)
+    expect(names()).toEqual(['one', 'three', 'two'])
+  })
+
+  it('carries the scene"s cells with it', () => {
+    store().createSlot('A1')
+    store().setCell(2, 1, 'A1')
+    store().moveScene(2, 0)
+    expect(project().grid.scenes[0].cells['1']).toBe('A1')
+  })
+
+  it('does nothing at the ends of the list', () => {
+    expect(store().moveScene(0, -1)).toBe(true)
+    expect(store().moveScene(2, 3)).toBe(true)
+    expect(names()).toEqual(['one', 'two', 'three'])
+  })
+
+  it('is undoable', () => {
+    store().moveScene(0, 2)
+    expect(names()).toEqual(['two', 'three', 'one'])
+    store().undo()
+    expect(names()).toEqual(['one', 'two', 'three'])
+  })
+})
+
 describe('the track mixer', () => {
   it('records a mute and validates', () => {
     expect(store().setTrack(2, { muted: true })).toBe(true)

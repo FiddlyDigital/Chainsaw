@@ -65,6 +65,8 @@ export interface ProjectStore {
   addScene: (name: string) => boolean
   renameScene: (index: number, name: string) => boolean
   removeScene: (index: number) => boolean
+  /** Reorder the scene list. Out-of-range indices are a no-op. */
+  moveScene: (from: number, to: number) => boolean
   setCell: (index: number, track: number, ref: string | null) => boolean
   setLastSceneState: (cells: Record<string, string>, scene?: string) => boolean
 }
@@ -391,6 +393,17 @@ export const useProject = create<ProjectStore>()((set, get) => ({
   removeScene(index) {
     return get().apply((draft) => {
       draft.grid.scenes.splice(index, 1)
+    })
+  },
+
+  moveScene(from, to) {
+    return get().apply((draft) => {
+      const scenes = draft.grid.scenes
+      // Out of range is a no-op rather than a failure: the callers are ↑/↓
+      // buttons at the ends of the list, and refusing is the same as disabling.
+      if (to < 0 || to >= scenes.length || from < 0 || from >= scenes.length) return
+      const [moved] = scenes.splice(from, 1)
+      scenes.splice(to, 0, moved)
     })
   },
 
