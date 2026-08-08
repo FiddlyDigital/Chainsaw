@@ -38,7 +38,7 @@ export default function App() {
   // validates is ignored by `readAutosave`, so this cannot wedge the app.
   useEffect(() => {
     const saved = readAutosave()
-    if (saved) load(saved)
+    if (saved && load(saved)) useRuntime.getState().adoptProject()
   }, [load])
 
   // …including the MIDI output, where the browser will reconnect silently.
@@ -79,6 +79,7 @@ export default function App() {
       const opened = await openProject()
       if (!opened) return
       if (load(opened.project)) {
+        useRuntime.getState().adoptProject()
         handle.current = opened.handle
         // Say what an older file lost on the way in. Dropping part of someone's
         // project without mentioning it is how they find out much later.
@@ -98,7 +99,7 @@ export default function App() {
     if (useProject.getState().dirty && !window.confirm('Discard unsaved changes and start a new project?')) return
     handle.current = null
     clearAutosave()
-    load(emptyProject())
+    if (load(emptyProject())) useRuntime.getState().adoptProject()
   }, [load])
 
   useShortcuts({ onSave: () => void doSave(), onSaveAs: () => void doSaveAs(), onOpen: () => void doOpen() })

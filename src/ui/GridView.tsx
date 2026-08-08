@@ -105,7 +105,12 @@ export function GridView() {
                     >
                       ↓
                     </button>
-                    <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
+                    <button
+                      className="mini"
+                      onClick={() => removeScene(index)}
+                      aria-label={`Delete scene ${scene.name}`}
+                      title="Delete scene"
+                    >
                       ×
                     </button>
                   </span>

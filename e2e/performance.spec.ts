@@ -62,6 +62,51 @@ test('plays: the transport advances and no sound fails to resolve', async ({ pag
   expect(problems).toEqual([])
 })
 
+test('play starts the first scene, then the one you were last on', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+  const rows = page.locator('.grid tbody tr')
+
+  // Nothing has been played, so play starts at the top rather than running the
+  // clock over silence and waiting to be told what to fire.
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Pause and play again must not restart it — something is already playing.
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Move to another scene, stop, and play resumes there rather than the top.
+  await rows.nth(2).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('drop')
+  await page.getByRole('button', { name: 'Stop' }).click()
+  await expect(page.locator('.pill.live')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('drop')
+
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+  expect(problems).toEqual([])
+})
+
+test('play falls back to the top when the scene it remembers is gone', async ({ page }) => {
+  await page.goto('.')
+  const rows = page.locator('.grid tbody tr')
+
+  // Play the last scene, stop, then delete it.
+  await rows.nth(3).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('break')
+  await page.keyboard.press('Escape')
+  await rows.nth(3).getByRole('button', { name: 'Delete scene break' }).click()
+  await expect(rows).toHaveCount(3)
+
+  // Rather than firing nothing at all.
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+})
+
 test('triggering a scene plays it, and Esc stops everything', async ({ page }) => {
   const problems = watchConsole(page)
   await page.goto('.')

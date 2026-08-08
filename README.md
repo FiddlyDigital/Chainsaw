@@ -102,8 +102,14 @@ last scene holds rather than looping. Anything that is not a whole scene — one
 cell fired by hand, a track stopped, Esc — stops the follow, because there is
 no longer a scene to advance from.
 
-Between `follow` and a list of scenes, an arranged set is a list you walk down
-rather than a timeline you draw.
+**Play starts a scene** rather than running the clock over silence and waiting
+to be told what to fire: the one you were last on, or the first if you have not
+played anything yet. Something already playing is left alone, so resuming from
+pause never restarts a scene. Stop clears the grid and rewinds, so the next
+play starts that scene from its first step rather than part-way through it.
+
+Between play, `follow` and a list of scenes, an arranged set is a list you walk
+down rather than a timeline you draw.
 
 ## MIDI
 
@@ -313,7 +319,8 @@ otherwise.
    arrangement to bake into. Chainsaw had a written timeline alongside the grid
    and it went, because a grid _and_ a timeline is two ways to say the same
    thing and one of them was Ableton's. `meta.lastSceneState` still records what
-   was playing at save time, so a set comes back the way it was left.
+   was playing at save time, and opening a project reads it back, so play
+   picks up the scene the set was left on.
 
 ## Editor behaviour
 

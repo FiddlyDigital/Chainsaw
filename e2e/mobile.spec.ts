@@ -140,12 +140,14 @@ test('every control is big enough to hit', async ({ page }) => {
 
 test('the pane switcher reports what is happening in the pane you cannot see', async ({ page }) => {
   await page.goto('.')
-  await page.getByRole('button', { name: 'Play' }).tap()
-
+  // Nothing has been fired yet, so there is nothing to report.
   await expect(page.locator('.pane-mark.live')).toHaveCount(0)
-  await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').tap()
 
-  // Fire a scene, walk away from the stage, and the switcher still says so.
+  // Play starts a scene, so it is now reporting something.
+  await page.getByRole('button', { name: 'Play' }).tap()
+  await expect(page.locator('.pane-bar .pane-mark.live')).toBeVisible()
+
+  // Walk away from the stage and the switcher still says so.
   await paneButton(page, 'editor').tap()
   await expect(page.locator('.pane-bar .pane-mark.live')).toBeVisible()
 

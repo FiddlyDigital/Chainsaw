@@ -30,6 +30,14 @@ export interface RuntimeStore {
   /** Index of that scene, which is what auto-advance steps along. */
   activeSceneIndex: number | null
   /**
+   * The scene most recently triggered, remembered after it stops.
+   *
+   * Distinct from `activeSceneIndex`, which is only ever the scene playing
+   * right now: this is what play starts when nothing is playing, so a stopped
+   * set resumes where it left off rather than jumping back to the top.
+   */
+  lastSceneIndex: number | null
+  /**
    * Absolute cycle at which the active scene has played through, or null when
    * nothing is due to follow it — no scene, an empty one, or the end of the
    * list. Auto-advance watches this and nothing else.
@@ -74,6 +82,10 @@ export interface RuntimeStore {
   stop: () => void
 
   triggerScene: (index: number) => void
+  /** The scene play would start from here. */
+  resumeIndex: () => number
+  /** Take up a freshly loaded project's live state, dropping the old one's. */
+  adoptProject: () => void
   setAutoAdvance: (on: boolean) => void
   /** Step to the next scene. A no-op at the end of the list, which holds. */
   advanceScene: () => void
@@ -119,6 +131,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   overrides: {},
   activeScene: null,
   activeSceneIndex: null,
+  lastSceneIndex: null,
   sceneEndsAt: null,
   autoAdvance: false,
   tracksPlaying: false,
@@ -150,7 +163,22 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     set({ tracksPlaying: true })
     const engineRef = getEngine()
     await engineRef.setTracksPlaying(true)
+    // Play is the only transport control that also *chooses* something to
+    // play. With the grid as the whole song, starting the clock over silence
+    // and waiting to be told what to fire is a dead press; so pick up where the
+    // set left off, or start at the top. Something already playing is left
+    // exactly as it is — this must not restart a scene on resume from pause.
+    if (Object.keys(get().overrides).length === 0) get().triggerScene(get().resumeIndex())
     await engineRef.play()
+  },
+
+  /** The scene play should start: the one last triggered, else the first. */
+  resumeIndex() {
+    const scenes = useProject.getState().project.grid.scenes
+    const remembered = get().lastSceneIndex
+    // A remembered scene can have been deleted since; fall back rather than
+    // silently firing nothing.
+    return remembered !== null && remembered < scenes.length ? remembered : 0
   },
 
   pause() {
@@ -159,6 +187,10 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   stop() {
     set({ tracksPlaying: false })
+    // Stop means back to the top. The clock resets to cycle 0, so clips still
+    // anchored to the cycle they were fired on would come back part-way
+    // through; clear them and let play start the scene from its first step.
+    commit(set, {}, null)
     getEngine().stop()
   },
 
@@ -174,8 +206,27 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     // A scene with no length has nothing to wait for, so it holds rather than
     // advancing straight past itself.
     const length = sceneCycles(project, scene)
-    set({ activeSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
+    set({ activeSceneIndex: index, lastSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
     commit(set, overrides, scene.name)
+  },
+
+  adoptProject() {
+    // A project records the scene that was playing when it was saved. Read it
+    // back so play resumes that scene rather than the top of a stranger's set —
+    // and drop the outgoing project's clips, which mean nothing here.
+    const project = useProject.getState().project
+    const name = project.meta.lastSceneState?.scene
+    const index = name ? project.grid.scenes.findIndex((scene) => scene.name === name) : -1
+    set({
+      overrides: {},
+      activeScene: null,
+      activeSceneIndex: null,
+      sceneEndsAt: null,
+      lastSceneIndex: index >= 0 ? index : null,
+    })
+    // Not through `commit`: that would write the live state back into the
+    // project we have just opened.
+    void getEngine().setOverrides({})
   },
 
   setAutoAdvance(autoAdvance) {
