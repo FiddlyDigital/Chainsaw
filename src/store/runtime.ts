@@ -39,6 +39,14 @@ export interface RuntimeStore {
   sceneEndsAt: number | null
   /** Fire the next scene when this one has played through. */
   autoAdvance: boolean
+  /**
+   * Whether the song — the arrangement and any live scenes — is playing.
+   *
+   * Distinct from `status.started`, which is only whether the clock is
+   * running. Evaluating a scratch pattern starts the clock without starting
+   * the song, so the two are not the same question.
+   */
+  tracksPlaying: boolean
   panel: Panel
   /** Which single column is shown on a narrow screen. */
   pane: Pane
@@ -123,6 +131,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   activeSceneIndex: null,
   sceneEndsAt: null,
   autoAdvance: false,
+  tracksPlaying: false,
   panel: 'grid',
   pane: 'stage',
   arrangementBarWidth: null,
@@ -152,7 +161,10 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
 
   async play() {
-    await getEngine().play()
+    set({ tracksPlaying: true })
+    const engineRef = getEngine()
+    await engineRef.setTracksPlaying(true)
+    await engineRef.play()
   },
 
   pause() {
@@ -160,6 +172,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
 
   stop() {
+    set({ tracksPlaying: false })
     getEngine().stop()
   },
 
@@ -216,15 +229,24 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     set({ scratch: code })
     const engineRef = getEngine()
     await engineRef.unlockAudio()
+    // Evaluating asks to hear the scratch pad, never to start the song. With
+    // the transport stopped the clock still has to start — the pattern needs
+    // something to play against — but the tracks stay out of it until the
+    // transport is played deliberately.
+    const startingClock = !get().status.started
     try {
+      if (startingClock) {
+        set({ tracksPlaying: false })
+        await engineRef.setTracksPlaying(false)
+      }
       await engineRef.setScratch(code)
-      // Evaluating is a request to hear it. Muting is undone, but a solo the
-      // performer set up deliberately is left alone.
+      // Muting is undone, but a solo the performer set up deliberately is left
+      // alone.
       const mode = get().scratchMode === 'off' ? 'stack' : get().scratchMode
       await engineRef.setScratchMode(mode)
       set({ scratchError: null, scratchLive: code.trim().length > 0, scratchMode: mode })
       // Stock Strudel starts playing on evaluate; keep that reflex.
-      if (!get().status.started) await engineRef.play()
+      if (startingClock) await engineRef.play()
     } catch (error) {
       set({ scratchError: error instanceof Error ? error.message : String(error) })
     }

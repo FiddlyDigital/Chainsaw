@@ -60,31 +60,54 @@ describe('anySoloed', () => {
  */
 describe('audible', () => {
   it('stacks the scratch over the tracks', () => {
-    expect(audible(['a', 'b'], 'scratch', 'stack')).toEqual(['a', 'b', 'scratch'])
+    expect(audible(['a', 'b'], 'scratch', 'stack', true)).toEqual(['a', 'b', 'scratch'])
   })
 
   it('drops the tracks when the scratch is soloed', () => {
-    expect(audible(['a', 'b'], 'scratch', 'solo')).toEqual(['scratch'])
+    expect(audible(['a', 'b'], 'scratch', 'solo', true)).toEqual(['scratch'])
   })
 
   it('leaves the tracks alone when the scratch is muted', () => {
-    expect(audible(['a', 'b'], 'scratch', 'off')).toEqual(['a', 'b'])
+    expect(audible(['a', 'b'], 'scratch', 'off', true)).toEqual(['a', 'b'])
   })
 
   it('never silences the set for want of a scratch pattern to solo', () => {
-    expect(audible(['a', 'b'], null, 'solo')).toEqual(['a', 'b'])
-    expect(audible(['a', 'b'], null, 'stack')).toEqual(['a', 'b'])
+    expect(audible(['a', 'b'], null, 'solo', true)).toEqual(['a', 'b'])
+    expect(audible(['a', 'b'], null, 'stack', true)).toEqual(['a', 'b'])
   })
 
   it('plays the scratch against silence when there are no tracks', () => {
-    expect(audible([], 'scratch', 'stack')).toEqual(['scratch'])
-    expect(audible([], 'scratch', 'solo')).toEqual(['scratch'])
+    expect(audible([], 'scratch', 'stack', true)).toEqual(['scratch'])
+    expect(audible([], 'scratch', 'solo', true)).toEqual(['scratch'])
   })
 
   it('does not disturb the array it was given', () => {
     const tracks = ['a']
-    audible(tracks, 'scratch', 'stack')
+    audible(tracks, 'scratch', 'stack', true)
     expect(tracks).toEqual(['a'])
+  })
+
+  /**
+   * The clock runs for either the song or the scratch pad. With the song
+   * stopped, evaluating a scratch pattern has to start the clock — and
+   * starting the clock must not drag the arrangement in behind it.
+   */
+  describe('with the song stopped', () => {
+    it('plays the scratch pad and nothing else', () => {
+      expect(audible(['a', 'b'], 'scratch', 'stack', false)).toEqual(['scratch'])
+    })
+
+    it('is silent when there is no scratch pattern either', () => {
+      expect(audible(['a', 'b'], null, 'stack', false)).toEqual([])
+    })
+
+    it('is silent when the scratch pad is muted', () => {
+      expect(audible(['a', 'b'], 'scratch', 'off', false)).toEqual([])
+    })
+
+    it('makes no difference to a solo, which had already dropped the tracks', () => {
+      expect(audible(['a', 'b'], 'scratch', 'solo', false)).toEqual(['scratch'])
+    })
   })
 })
 

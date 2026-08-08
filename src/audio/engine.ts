@@ -33,15 +33,21 @@ import { cpsFor, nextBoundary } from './timing'
 export type ScratchMode = 'off' | 'stack' | 'solo'
 
 /**
- * The patterns that should be sounding, given what the tracks resolved to and
- * what the scratch pad is set to do.
+ * The patterns that should be sounding, given what the tracks resolved to,
+ * what the scratch pad is set to do, and whether the song is playing at all.
+ *
+ * `tracksPlaying` is what lets the scratch pad sound on its own. There is one
+ * clock and one stacked pattern, so without it, starting the clock to hear a
+ * scratch pattern necessarily starts the arrangement and every live scene with
+ * it — which is not what evaluating a scratch means.
  *
  * A mode only means anything while there is a scratch pattern to apply it to —
  * soloing nothing would silence the set, which is never what was asked for.
  */
-export function audible<T>(tracks: T[], scratch: T | null, mode: ScratchMode): T[] {
-  if (!scratch || mode === 'off') return tracks
-  return mode === 'solo' ? [scratch] : [...tracks, scratch]
+export function audible<T>(tracks: T[], scratch: T | null, mode: ScratchMode, tracksPlaying: boolean): T[] {
+  const song = tracksPlaying ? tracks : []
+  if (!scratch || mode === 'off') return song
+  return mode === 'solo' ? [scratch] : [...song, scratch]
 }
 
 /**
@@ -108,6 +114,14 @@ export class Engine {
   /** The scratch pad's pattern, mixed in per `scratchMode`. Not part of the project. */
   private scratch: StrudelPattern | null = null
   private scratchMode: ScratchMode = 'stack'
+  /**
+   * Whether the arrangement and any live scenes are part of the mix.
+   *
+   * Separate from whether the scheduler is running, because the scratch pad
+   * can sound without the song: evaluating one starts the clock, and starting
+   * the clock must not start the song.
+   */
+  private tracksPlaying = true
   /**
    * MIDI clock out. It reads the transport rather than being pushed at, so it
    * cannot drift out of step with the scheduler between transport events.
@@ -204,6 +218,19 @@ export class Engine {
     void this.rebuild()
   }
 
+  /**
+   * Bring the song into the mix, or take it out.
+   *
+   * Queued for a boundary like everything else, so pressing play while a
+   * scratch pattern is already running drops the song in on the beat rather
+   * than mid-bar.
+   */
+  async setTracksPlaying(playing: boolean): Promise<void> {
+    if (playing === this.tracksPlaying) return
+    this.tracksPlaying = playing
+    await this.rebuild()
+  }
+
   setMasterVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(1, volume))
   }
@@ -292,7 +319,7 @@ export class Engine {
     }
     // Every track is still compiled under `solo`, so its errors are still
     // reported and coming out of solo needs no recompile.
-    const patterns = audible(trackPatterns, this.scratch, this.scratchMode)
+    const patterns = audible(trackPatterns, this.scratch, this.scratchMode, this.tracksPlaying)
 
     if (generation !== this.generation) return // superseded while compiling
 

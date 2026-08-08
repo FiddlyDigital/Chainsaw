@@ -194,9 +194,12 @@ test('a pattern can be typed without ever leaving the letter keyboard', async ({
   await page.keyboard.type('0.5')
   await expect(editor).toHaveText('s("bd*4").gain(0.5)')
 
-  // And the run button is in reach of the same thumb.
+  // And the run button is in reach of the same thumb, putting the pattern in
+  // the mix — without starting the song, which stays where it was.
   await page.locator('.pattern-run').tap()
-  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+  // The transport's own button, not the symbol row's "play" beside it.
+  await expect(page.locator('.transport .play')).toHaveAttribute('aria-label', 'Play')
   await expect(page.locator('.inline-error')).toHaveCount(0)
 })
 

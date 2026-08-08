@@ -109,7 +109,7 @@ test('a live code edit reaches playback without stopping the transport', async (
   expect(problems).toEqual([])
 })
 
-test('the scratch pad evaluates and starts playing, like the stock REPL', async ({ page }) => {
+test('the scratch pad evaluates and sounds straight away, like the stock REPL', async ({ page }) => {
   const problems = watchConsole(page)
   await page.goto('.')
 
@@ -119,9 +119,59 @@ test('the scratch pad evaluates and starts playing, like the stock REPL', async 
   await page.keyboard.type('s("hh*4").gain(0.5)')
   await page.keyboard.press('ControlOrMeta+Enter')
 
-  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  // The clock starts for it without a press of play — but for the scratch pad
+  // alone; what it does *not* do is start the song, which is covered below.
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
   await expect(page.locator('.inline-error')).toHaveCount(0)
   expect(problems).toEqual([])
+})
+
+test('evaluating the scratch pad does not start the song', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+
+  const editor = page.locator('.code-editor .cm-content')
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('s("hh*4").gain(0.4)')
+  await page.keyboard.press('ControlOrMeta+Enter')
+
+  // The scratch pattern is in the mix and the clock is running for it…
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+
+  // …but the song is not playing: the transport still offers to start it, and
+  // the arrangement has no playhead sweeping across it.
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
+  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
+  await expect(page.locator('.playhead')).toHaveCount(0)
+
+  // Pressing play is what starts it, and the scratch keeps going underneath.
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+  await expect(page.locator('.playhead')).toHaveCount(1)
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+
+  expect(problems).toEqual([])
+})
+
+test('evaluating while the song is playing leaves it playing', async ({ page }) => {
+  await page.goto('.')
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+
+  const editor = page.locator('.code-editor .cm-content')
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('s("cp*2").gain(0.4)')
+  await page.keyboard.press('ControlOrMeta+Enter')
+
+  // Evaluating over a running song is the stock REPL behaviour and unchanged.
+  await expect(page.locator('.pill.scratch')).toHaveText('scratch')
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 })
 
 test('the scratch pad plays alongside the tracks, and can be muted or soloed', async ({ page }) => {

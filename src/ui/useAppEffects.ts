@@ -128,7 +128,9 @@ export function useShortcuts({ onSave, onSaveAs, onOpen }: Shortcuts): void {
 
       if (event.key === ' ') {
         event.preventDefault()
-        if (runtime.status.started) runtime.pause()
+        // Toggles the song, matching the transport button. The clock may be
+        // running for a scratch pattern with the song stopped.
+        if (runtime.status.started && runtime.tracksPlaying) runtime.pause()
         else void runtime.play()
         return
       }
