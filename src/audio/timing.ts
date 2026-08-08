@@ -35,14 +35,6 @@ export function cpsFor(meta: Pick<Meta, 'bpm' | 'cyclesPerBar'>): number {
   return (meta.bpm / 60 / BEATS_PER_BAR) * meta.cyclesPerBar
 }
 
-export function barToCycle(bar: number, cyclesPerBar: number): number {
-  return bar * cyclesPerBar
-}
-
-export function cycleToBar(cycle: number, cyclesPerBar: number): number {
-  return cycle / cyclesPerBar
-}
-
 /**
  * The next point at which a queued change is allowed to take effect.
  *

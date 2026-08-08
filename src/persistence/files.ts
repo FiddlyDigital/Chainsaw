@@ -8,6 +8,7 @@
  * input, which works in every browser.
  */
 import type { Project } from '../model/types'
+import { migrate } from '../model/migrate'
 import { formatErrors, validateProject } from '../model/validate'
 
 export const FILE_EXTENSION = '.chainsaw.json'
@@ -27,16 +28,25 @@ export function serialize(project: Project): string {
   return `${JSON.stringify(project, null, 2)}\n`
 }
 
-export function parse(text: string): Project {
+export interface ParsedProject {
+  project: Project
+  /** What the file carried that this version cannot, for the caller to report. */
+  dropped: string[]
+}
+
+export function parse(text: string): ParsedProject {
   let value: unknown
   try {
     value = JSON.parse(text)
   } catch (error) {
     throw new Error(`not valid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
-  const result = validateProject(value)
+  // Before validation, not after: the schema is closed, so a field this
+  // version has dropped makes the whole file invalid rather than being ignored.
+  const { document, dropped } = migrate(value)
+  const result = validateProject(document)
   if (!result.ok) throw new Error(`not a valid Chainsaw project:\n${formatErrors(result.errors)}`)
-  return value as Project
+  return { project: document as Project, dropped }
 }
 
 function fileName(project: Project): string {
@@ -77,8 +87,7 @@ export function download(project: Project): void {
   URL.revokeObjectURL(url)
 }
 
-export interface OpenedProject {
-  project: Project
+export interface OpenedProject extends ParsedProject {
   handle: FileSystemFileHandle | null
 }
 
@@ -92,11 +101,11 @@ export async function openProject(): Promise<OpenedProject | null> {
     })
     if (!handle) return null
     const file = await handle.getFile()
-    return { project: parse(await file.text()), handle }
+    return { ...parse(await file.text()), handle }
   }
   const file = await pickFile()
   if (!file) return null
-  return { project: parse(await file.text()), handle: null }
+  return { ...parse(await file.text()), handle: null }
 }
 
 function pickFile(): Promise<File | null> {

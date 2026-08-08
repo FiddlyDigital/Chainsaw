@@ -1,13 +1,15 @@
 # Chainsaw
 
 A browser-based live-coding sequencer: **Strudel** patterns, **LSDJ**'s
-phrase → chain → song structure, and an **Ableton**-style scene grid for
-triggering over the top of a written arrangement.
+phrase → chain structure, and a scene grid you play the whole thing from.
 
-Write a pattern, commit it to a named slot, sequence slots into chains, place
-chains on a timeline, and improvise over all of it from the grid. Every edit
+Write a pattern, commit it to a named slot, sequence slots into chains, put
+either in a scene, and play the set by firing scenes and cells. Every edit
 propagates to every place that references it, quantized to a bar boundary so
 nothing glitches. The whole project is one human-readable JSON file.
+
+There is no separate timeline view to write a song into first — the grid is the
+song.
 
 It installs as a PWA and works with the network off.
 
@@ -37,10 +39,10 @@ free.
 | `src/audio/`       | Timing, timeline resolution, the Strudel combinators, and the scheduler           |
 | `src/store/`       | The project store (persisted shape) and the runtime store (ephemeral)             |
 | `src/persistence/` | File System Access API save/load, `localStorage` autosave                         |
-| `src/ui/`          | One component per surface: transport, grid, arrangement, editors, panel           |
+| `src/ui/`          | One component per surface: transport, grid, editors, project panel                |
 
 The layer worth reading first is `src/audio/timeline.ts`. It resolves the whole
-project — slots, chains, arrangement, live overrides — into per-track
+project — slots, chains, whatever the grid has triggered — into per-track
 **timelines**: plain descriptions of which slot occupies which stretch of
 cycles. It touches no Strudel and no audio, so the hard part of the system is
 unit-testable without an audio context. `src/audio/patterns.ts` is what turns a
@@ -55,9 +57,9 @@ boundary (`pieces()` in `audio/patterns.ts`), so every cycle before that boundar
 to exactly what it did before. The switch is sample-accurate rather than a race
 against the scheduler's next tick.
 
-**Patterns are queried at absolute time.** A slot sitting at cycle 12 of the
-arrangement is queried at cycle 12, so `note("<c e g>")` keeps advancing across
-the song exactly as it would in the stock Strudel REPL. Strudel's own `slowcat`
+**Patterns are queried at absolute time.** A clip playing at cycle 12 is
+queried at cycle 12, so `note("<c e g>")` keeps advancing across the set
+exactly as it would in the stock Strudel REPL. Strudel's own `slowcat`
 cannot do this — it re-times each branch to its own rotation count — which is
 why `timelinePattern()` exists.
 
@@ -78,11 +80,8 @@ work as normal.
 
 ## Playing it
 
-**Every track has a fader, a mute and a solo.** Mute and solo sit next to the
-track number in both the grid's column headings and the arrangement's row
-labels — needing to change pane to drop a track is exactly the wrong thing
-mid-set. The fader is in the grid only; the arrangement's row labels are 92px
-of a scrolling timeline.
+**Every track has a fader, a mute and a solo**, in its column heading — the
+grid's headings are the mixer.
 
 Solo is exclusive: the moment anything is soloed, everything else drops out.
 Mute wins over solo on the same track, so a stray solo cannot resurrect a track
@@ -100,13 +99,17 @@ rather than by truthiness: a fader at 0 is falsy and meaningful, and a fader at
 **Scenes can be reordered** with ↑/↓, and **`follow` walks the list**: a scene
 runs until its longest cell has had one full pass, then the next fires. The
 last scene holds rather than looping. Anything that is not a whole scene — one
-cell fired by hand, a track handed back, Esc — stops the follow, because there
-is no longer a scene to advance from.
+cell fired by hand, a track stopped, Esc — stops the follow, because there is
+no longer a scene to advance from.
 
-**The arrangement zooms** through discrete widths from 8px to 112px a bar,
-rather than a continuous factor: a button press should land somewhere
-predictable, and repeated multiplication drifts into fractional pixels that
-make the ruler and the blocks disagree about where a bar is.
+**Play starts a scene** rather than running the clock over silence and waiting
+to be told what to fire: the one you were last on, or the first if you have not
+played anything yet. Something already playing is left alone, so resuming from
+pause never restarts a scene. Stop clears the grid and rewinds, so the next
+play starts that scene from its first step rather than part-way through it.
+
+Between play, `follow` and a list of scenes, an arranged set is a list you walk
+down rather than a timeline you draw.
 
 ## MIDI
 
@@ -139,17 +142,15 @@ time simply leaves the clock off.
 The scratch pad is the stock Strudel REPL, kept intact: type an expression, hit
 `Ctrl/Cmd + Enter`, and it plays. What it is not is a separate instrument —
 **it sounds alongside whatever the tracks are already playing**, over the top
-of the arrangement, the scenes, and any live overrides, all against the same
-transport. So you can write an idea while a set is running and hear it in
+of whatever the grid has playing, all against the same transport. So you can write an idea while a set is running and hear it in
 context without touching the document.
 
 **Evaluating never starts the song.** With the transport stopped, evaluating
 starts the clock — the pattern needs something to run against — and plays the
-scratch pad alone; the arrangement and any scenes stay out until you press
-play. So the transport's button, and the arrangement's playhead, follow _the
-song_ rather than the clock: a sweeping playhead over an arrangement that is
-not sounding says the wrong thing. Pressing play brings the song in on the next
-boundary, underneath whatever the scratch pad is already doing.
+scratch pad alone; the grid stays out until you press play. So the transport's
+button follows _the grid_ rather than the clock — showing "playing" while the
+grid is silent would say the wrong thing. Pressing play brings the grid in on
+the next boundary, underneath whatever the scratch pad is already doing.
 
 Pause and stop are still the transport, and take everything with them. To
 silence the scratch pad on its own, use `mute` or `hush` below.
@@ -186,7 +187,7 @@ text field.
 | `Ctrl/Cmd + Enter` | Evaluate the scratch pad / commit the slot's code |
 | `Space`            | Play or pause                                     |
 | `Ctrl/Cmd + .`     | Stop                                              |
-| `Esc`              | Drop live overrides, return to the arrangement    |
+| `Esc`              | Stop every clip                                   |
 | `Ctrl/Cmd + Z`     | Undo (`Shift` to redo)                            |
 | `Ctrl/Cmd + S`     | Save (`Shift` for save as)                        |
 | `Ctrl/Cmd + O`     | Open                                              |
@@ -225,13 +226,11 @@ plays what you just wrote. Brackets insert as pairs with the caret between
 them and `→` steps over the closer, because a phone has no arrow keys and
 placing a caret by tapping at it is a coin toss.
 
-Two things follow the finger rather than the viewport. Arrangement bars go from
-26px to 44px, because a fingertip covers three of the narrow ones — the number
-lives in `ArrangementView` rather than the stylesheet, since a tap resolves to a
-bar by dividing by it. And `--keyboard` carries how much of the screen the
-on-screen keyboard is covering: Android shrinks the layout viewport itself, but
-iOS Safari shrinks only the visual one, which would leave the symbol row and
-the pane switcher underneath the keyboard exactly when they are wanted.
+One thing follows the finger rather than the viewport: `--keyboard` carries how
+much of the screen the on-screen keyboard is covering. Android shrinks the
+layout viewport itself, but iOS Safari shrinks only the visual one, which would
+leave the symbol row and the pane switcher underneath the keyboard exactly when
+they are wanted.
 
 `e2e/mobile.spec.ts` drives all of it at 390×844 with touch input and asserts
 the properties that actually matter: nothing overflows sideways in any pane,
@@ -277,6 +276,19 @@ opened; elsewhere it downloads. Either way a copy is autosaved to
 `localStorage`, and an autosave that no longer validates is discarded rather
 than loaded, so a bad one cannot wedge the app on boot.
 
+**Opening an older project.** The schema is closed — `additionalProperties:
+false` — so a field the format has dropped does not get ignored on load, it
+makes the whole document invalid and the file refuses to open. `src/model/migrate.ts`
+strips those fields on the way in, before validation sees them, and reports
+what it removed so the app can say so rather than quietly discarding part of
+someone's project.
+
+Right now that means one thing: a project written before the arrangement was
+removed loses its placements. Its slots and chains are untouched and still in
+the project panel, ready to drop into a scene. Nothing is written back to disk
+until you save, so the original file keeps its arrangement until you choose
+otherwise.
+
 ## Answers to the PRD's open questions
 
 1. **Strudel's current API.** Verified against `@strudel/core` 1.2.6 /
@@ -303,10 +315,12 @@ than loaded, so a bad one cannot wedge the app on boot.
 
 3. **Keybindings.** See the table above.
 
-4. **Baking live performance into the arrangement.** Not implemented, and the
-   schema does not preclude it: `meta.lastSceneState` already records what was
-   playing at save time in the same shape a scene uses, so a future "bake" only
-   has to write placements from it.
+4. **Baking live performance into an arrangement.** Moot: there is no
+   arrangement to bake into. Chainsaw had a written timeline alongside the grid
+   and it went, because a grid _and_ a timeline is two ways to say the same
+   thing and one of them was Ableton's. `meta.lastSceneState` still records what
+   was playing at save time, and opening a project reads it back, so play
+   picks up the scene the set was left on.
 
 ## Editor behaviour
 

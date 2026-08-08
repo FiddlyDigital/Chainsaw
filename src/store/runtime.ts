@@ -13,8 +13,6 @@ import { sceneCycles, type LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
 
-export type Panel = 'grid' | 'arrangement'
-
 /**
  * Which of the three columns is on screen when there is only room for one.
  * Ignored by the layout above the narrow breakpoint, where all three are
@@ -25,12 +23,20 @@ export type Pane = 'project' | 'stage' | 'editor'
 
 export interface RuntimeStore {
   status: EngineStatus
-  /** Live scene/cell overrides, by track (PRD §7.5). Not part of the arrangement. */
+  /** What each track is playing, by track (PRD §7.5). The grid is the song. */
   overrides: Record<number, LiveOverride>
   /** Name of the scene triggered whole, when the overrides still match it. */
   activeScene: string | null
   /** Index of that scene, which is what auto-advance steps along. */
   activeSceneIndex: number | null
+  /**
+   * The scene most recently triggered, remembered after it stops.
+   *
+   * Distinct from `activeSceneIndex`, which is only ever the scene playing
+   * right now: this is what play starts when nothing is playing, so a stopped
+   * set resumes where it left off rather than jumping back to the top.
+   */
+  lastSceneIndex: number | null
   /**
    * Absolute cycle at which the active scene has played through, or null when
    * nothing is due to follow it — no scene, an empty one, or the end of the
@@ -40,22 +46,15 @@ export interface RuntimeStore {
   /** Fire the next scene when this one has played through. */
   autoAdvance: boolean
   /**
-   * Whether the song — the arrangement and any live scenes — is playing.
+   * Whether the grid's clips are playing.
    *
    * Distinct from `status.started`, which is only whether the clock is
    * running. Evaluating a scratch pattern starts the clock without starting
    * the song, so the two are not the same question.
    */
   tracksPlaying: boolean
-  panel: Panel
   /** Which single column is shown on a narrow screen. */
   pane: Pane
-  /**
-   * Bar width in the arrangement, in pixels, or null to follow the pointer
-   * type. View state rather than document state: how far you happen to be
-   * zoomed in is not part of the song.
-   */
-  arrangementBarWidth: number | null
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
   /** Chain currently open in the chain editor. */
@@ -72,9 +71,7 @@ export interface RuntimeStore {
   /** The output receiving clock, or null for none. */
   midiOutputId: string | null
 
-  setPanel: (panel: Panel) => void
   setPane: (pane: Pane) => void
-  setArrangementBarWidth: (px: number | null) => void
   setEditing: (slot: string | null) => void
   setEditingChain: (chain: string | null) => void
   setScratch: (code: string) => void
@@ -85,12 +82,17 @@ export interface RuntimeStore {
   stop: () => void
 
   triggerScene: (index: number) => void
+  /** The scene play would start from here. */
+  resumeIndex: () => number
+  /** Take up a freshly loaded project's live state, dropping the old one's. */
+  adoptProject: () => void
   setAutoAdvance: (on: boolean) => void
   /** Step to the next scene. A no-op at the end of the list, which holds. */
   advanceScene: () => void
   triggerCell: (track: number, ref: string) => void
   clearTrack: (track: number) => void
-  returnToArrangement: () => void
+  /** Stop every clip, leaving the grid silent. */
+  stopAll: () => void
   /** Evaluate scratch-pad code straight away, the stock REPL behaviour. */
   evaluateScratch: (code: string) => Promise<void>
   /** Mix the scratch layer in, out, or over everything else. */
@@ -129,12 +131,11 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   overrides: {},
   activeScene: null,
   activeSceneIndex: null,
+  lastSceneIndex: null,
   sceneEndsAt: null,
   autoAdvance: false,
   tracksPlaying: false,
-  panel: 'grid',
   pane: 'stage',
-  arrangementBarWidth: null,
   editing: null,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
@@ -145,9 +146,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   midiOutputs: [],
   midiOutputId: null,
 
-  setPanel: (panel) => set({ panel, pane: 'stage' }),
   setPane: (pane) => set({ pane }),
-  setArrangementBarWidth: (arrangementBarWidth) => set({ arrangementBarWidth }),
   // Opening something for editing brings its editor on screen. On a wide
   // layout the pane is inert and this changes nothing; on a narrow one it is
   // the difference between tapping a slot and appearing to do nothing.
@@ -164,7 +163,22 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     set({ tracksPlaying: true })
     const engineRef = getEngine()
     await engineRef.setTracksPlaying(true)
+    // Play is the only transport control that also *chooses* something to
+    // play. With the grid as the whole song, starting the clock over silence
+    // and waiting to be told what to fire is a dead press; so pick up where the
+    // set left off, or start at the top. Something already playing is left
+    // exactly as it is — this must not restart a scene on resume from pause.
+    if (Object.keys(get().overrides).length === 0) get().triggerScene(get().resumeIndex())
     await engineRef.play()
+  },
+
+  /** The scene play should start: the one last triggered, else the first. */
+  resumeIndex() {
+    const scenes = useProject.getState().project.grid.scenes
+    const remembered = get().lastSceneIndex
+    // A remembered scene can have been deleted since; fall back rather than
+    // silently firing nothing.
+    return remembered !== null && remembered < scenes.length ? remembered : 0
   },
 
   pause() {
@@ -173,6 +187,10 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   stop() {
     set({ tracksPlaying: false })
+    // Stop means back to the top. The clock resets to cycle 0, so clips still
+    // anchored to the cycle they were fired on would come back part-way
+    // through; clear them and let play start the scene from its first step.
+    commit(set, {}, null)
     getEngine().stop()
   },
 
@@ -188,8 +206,27 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     // A scene with no length has nothing to wait for, so it holds rather than
     // advancing straight past itself.
     const length = sceneCycles(project, scene)
-    set({ activeSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
+    set({ activeSceneIndex: index, lastSceneIndex: index, sceneEndsAt: length > 0 ? at + length : null })
     commit(set, overrides, scene.name)
+  },
+
+  adoptProject() {
+    // A project records the scene that was playing when it was saved. Read it
+    // back so play resumes that scene rather than the top of a stranger's set —
+    // and drop the outgoing project's clips, which mean nothing here.
+    const project = useProject.getState().project
+    const name = project.meta.lastSceneState?.scene
+    const index = name ? project.grid.scenes.findIndex((scene) => scene.name === name) : -1
+    set({
+      overrides: {},
+      activeScene: null,
+      activeSceneIndex: null,
+      sceneEndsAt: null,
+      lastSceneIndex: index >= 0 ? index : null,
+    })
+    // Not through `commit`: that would write the live state back into the
+    // project we have just opened.
+    void getEngine().setOverrides({})
   },
 
   setAutoAdvance(autoAdvance) {
@@ -221,7 +258,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     commit(set, overrides, null)
   },
 
-  returnToArrangement() {
+  stopAll() {
     commit(set, {}, null)
   },
 
@@ -320,8 +357,8 @@ function commit(
   activeScene: string | null,
 ) {
   // Anything that is not a whole scene breaks the follow — a single cell, a
-  // track handed back, a return to the arrangement. There is no longer a scene
-  // playing, so there is nothing to advance from.
+  // track stopped, everything stopped. There is no longer a scene playing, so
+  // there is nothing to advance from.
   set(activeScene === null ? { overrides, activeScene, activeSceneIndex: null, sceneEndsAt: null } : { overrides, activeScene })
   void getEngine().setOverrides(overrides)
   const cells: Record<string, string> = {}

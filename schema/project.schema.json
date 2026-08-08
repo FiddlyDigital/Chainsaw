@@ -3,7 +3,7 @@
   "$id": "https://chainsaw.invalid/schema/project.schema.json",
   "title": "Chainsaw project",
   "type": "object",
-  "required": ["meta", "instruments", "slots", "chains", "arrangement", "grid"],
+  "required": ["meta", "instruments", "slots", "chains", "grid"],
   "additionalProperties": false,
   "definitions": {
     "id": {
@@ -122,30 +122,6 @@
           "muted": { "type": "boolean" },
           "soloed": { "type": "boolean" },
           "gain": { "type": "number", "minimum": 0, "maximum": 1 }
-        }
-      }
-    },
-    "arrangement": {
-      "type": "object",
-      "required": ["tracks"],
-      "additionalProperties": false,
-      "properties": {
-        "tracks": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/definitions/trackKey" },
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["bar", "chain", "len"],
-              "additionalProperties": false,
-              "properties": {
-                "bar": { "type": "integer", "minimum": 0, "maximum": 4096 },
-                "chain": { "$ref": "#/definitions/id" },
-                "len": { "type": "integer", "minimum": 1, "maximum": 4096 }
-              }
-            }
-          }
         }
       }
     },

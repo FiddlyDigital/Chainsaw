@@ -12,7 +12,7 @@ export type Quantize = 'immediate' | 'cycle' | 'bar'
 /** Step resolution of a slot, expressed as a note division of one cycle. */
 export type StepResolution = '1n' | '2n' | '4n' | '8n' | '16n' | '32n' | '64n'
 
-/** What a track is playing right now, when it is not following the arrangement. */
+/** What each track is playing right now, so a set survives a save. */
 export interface SceneState {
   /** Track number (as a string, to match the rest of the schema) -> slot or chain id. */
   cells: Record<string, string>
@@ -32,9 +32,8 @@ export interface Meta {
   /** Global trigger quantization (§7.5). Defaults to `bar`. */
   quantize?: Quantize
   /**
-   * Live overrides at the moment the project was saved, so a project saved
-   * mid-performance restores what was playing (§7.5). Never read by the
-   * arrangement itself.
+   * What was playing at the moment the project was saved, so a project saved
+   * mid-performance comes back the way it was left (§7.5).
    */
   lastSceneState?: SceneState
 }
@@ -69,12 +68,6 @@ export interface ChainStep {
 export interface Chain {
   track: number
   steps: ChainStep[]
-}
-
-export interface Placement {
-  bar: number
-  chain: string
-  len: number
 }
 
 export interface Scene {
@@ -113,7 +106,6 @@ export interface Project {
   chains: Record<string, Chain>
   /** Track number (as a string) -> mixer state. Sparse; absent means default. */
   tracks?: Record<string, TrackSettings>
-  arrangement: { tracks: Record<string, Placement[]> }
   grid: { scenes: Scene[] }
 }
 

@@ -18,7 +18,6 @@ import {
   type ChainStep,
   type Instrument,
   type Meta,
-  type Placement,
   type Project,
   type Scene,
   type Slot,
@@ -69,10 +68,6 @@ export interface ProjectStore {
   removeChainStep: (id: string, index: number) => boolean
   moveChainStep: (id: string, from: number, to: number) => boolean
 
-  placeChain: (track: number, placement: Placement) => boolean
-  updatePlacement: (track: number, index: number, patch: Partial<Placement>) => boolean
-  removePlacement: (track: number, index: number) => boolean
-
   addScene: (name: string) => boolean
   renameScene: (index: number, name: string) => boolean
   removeScene: (index: number) => boolean
@@ -86,13 +81,6 @@ function touch(project: Project): Project {
   return { ...project, meta: { ...project.meta, modified: new Date().toISOString() } }
 }
 
-/** Placements must stay sorted by bar; the validator relies on it and so does the resolver. */
-function sortArrangement(draft: Project) {
-  for (const placements of Object.values(draft.arrangement.tracks)) {
-    placements.sort((a, b) => a.bar - b.bar)
-  }
-}
-
 export const useProject = create<ProjectStore>()((set, get) => ({
   project: demoProject(),
   past: [],
@@ -104,10 +92,7 @@ export const useProject = create<ProjectStore>()((set, get) => ({
     const current = get().project
     let next: Project
     try {
-      next = produce(current, (draft) => {
-        recipe(draft)
-        sortArrangement(draft)
-      })
+      next = produce(current, (draft) => recipe(draft))
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : String(error) })
       return false
@@ -171,9 +156,6 @@ export const useProject = create<ProjectStore>()((set, get) => ({
       Object.assign(draft.meta, patch)
       if (patch.trackCount !== undefined) {
         // Data beyond the new bound would dangle; the caller confirms first.
-        for (const key of Object.keys(draft.arrangement.tracks)) {
-          if (Number(key) > patch.trackCount) delete draft.arrangement.tracks[key]
-        }
         for (const scene of draft.grid.scenes) {
           for (const key of Object.keys(scene.cells)) {
             if (Number(key) > patch.trackCount) delete scene.cells[key]
@@ -316,9 +298,6 @@ export const useProject = create<ProjectStore>()((set, get) => ({
       if (!chain) throw new Error(`no chain "${id}"`)
       delete draft.chains[id]
       draft.chains[next] = chain
-      for (const placements of Object.values(draft.arrangement.tracks)) {
-        for (const placement of placements) if (placement.chain === id) placement.chain = next
-      }
       renameCellRefs(draft, id, next)
     })
   },
@@ -326,9 +305,6 @@ export const useProject = create<ProjectStore>()((set, get) => ({
   removeChain(id) {
     return get().apply((draft) => {
       delete draft.chains[id]
-      for (const [track, placements] of Object.entries(draft.arrangement.tracks)) {
-        draft.arrangement.tracks[track] = placements.filter((placement) => placement.chain !== id)
-      }
       dropCellRefs(draft, id)
     })
   },
@@ -362,28 +338,6 @@ export const useProject = create<ProjectStore>()((set, get) => ({
       if (to < 0 || to >= steps.length || from < 0 || from >= steps.length) return
       const [moved] = steps.splice(from, 1)
       steps.splice(to, 0, moved)
-    })
-  },
-
-  placeChain(track, placement) {
-    return get().apply((draft) => {
-      const key = String(track)
-      draft.arrangement.tracks[key] ??= []
-      draft.arrangement.tracks[key].push(placement)
-    })
-  },
-
-  updatePlacement(track, index, patch) {
-    return get().apply((draft) => {
-      const placement = draft.arrangement.tracks[String(track)]?.[index]
-      if (!placement) throw new Error(`no placement ${index} on track ${track}`)
-      Object.assign(placement, patch)
-    })
-  },
-
-  removePlacement(track, index) {
-    return get().apply((draft) => {
-      draft.arrangement.tracks[String(track)]?.splice(index, 1)
     })
   },
 

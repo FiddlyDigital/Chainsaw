@@ -5,12 +5,12 @@ import { parse, serialize } from './files'
 describe('round trip', () => {
   it('reads back exactly what it wrote', () => {
     const project = demoProject()
-    expect(parse(serialize(project))).toEqual(project)
+    expect(parse(serialize(project)).project).toEqual(project)
   })
 
   it('produces a stable, diffable document', () => {
     const project = demoProject()
-    expect(serialize(project)).toBe(serialize(parse(serialize(project))))
+    expect(serialize(project)).toBe(serialize(parse(serialize(project)).project))
     expect(serialize(project).endsWith('}\n')).toBe(true)
     expect(serialize(project)).toContain('\n  "meta": {')
   })
@@ -19,7 +19,7 @@ describe('round trip', () => {
     const project = emptyProject()
     project.slots = { A1: { code: 's("bd")', length: 16, steps: '16n', color: '#ffffff', muted: false } }
     project.meta.lastSceneState = { cells: { '1': 'A1' }, scene: 'drop' }
-    expect(parse(serialize(project)).meta.lastSceneState).toEqual({ cells: { '1': 'A1' }, scene: 'drop' })
+    expect(parse(serialize(project)).project.meta.lastSceneState).toEqual({ cells: { '1': 'A1' }, scene: 'drop' })
   })
 })
 

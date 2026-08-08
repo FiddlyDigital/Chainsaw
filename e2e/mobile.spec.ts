@@ -48,7 +48,6 @@ test('nothing overflows sideways, in any pane or view', async ({ page }) => {
   expect(await overflow(page)).toBeLessThanOrEqual(0)
 
   await paneButton(page, 'stage').tap()
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).tap()
   expect(await overflow(page)).toBeLessThanOrEqual(0)
 
   await paneButton(page, 'project').tap()
@@ -101,33 +100,22 @@ test('opening something for editing brings its pane forward', async ({ page }) =
   await expect(page.locator('.stage')).toBeVisible()
 })
 
-test('a scene fires from touch, and the arrangement can be edited by touch', async ({ page }) => {
+test('a scene fires from touch, and a cell can be reassigned', async ({ page }) => {
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).tap()
 
   await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').tap()
-  await expect(page.locator('.pill.live')).toContainText('drop')
+  await expect(page.locator('.pill.live')).toContainText('verse')
+  await expect(page.locator('.grid .cell.playing')).not.toHaveCount(0)
 
-  // Place a chain with the pen tool, then drag it three bars along.
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).tap()
-  await page.locator('.chip', { hasText: 'DRUMS_A' }).tap()
-  const lane = page.locator('.track-row').nth(4).locator('.lane')
-  await lane.tap({ position: { x: 110, y: 10 } })
-  const block = lane.locator('.block').first()
-  await expect(block).toBeVisible()
+  // The assign control is a real target on touch, not a hover-revealed sliver.
+  const cell = page.locator('.grid tbody tr').nth(0).locator('.cell-wrap').nth(1)
+  await cell.locator('.cell-assign').selectOption('B1')
+  await expect(cell.locator('.cell-name')).toHaveText('B1')
 
-  const before = await block.boundingBox()
-  if (!before) throw new Error('the placement did not render')
-  // Grab near the left edge and drag by the block's own length — a bar is
-  // wider under a finger than under a mouse, so no pixel count here is safe.
-  const grabX = before.x + 10
-  const grabY = before.y + before.height / 2
-  await page.mouse.move(grabX, grabY)
-  await page.mouse.down()
-  await page.mouse.move(grabX + before.width, grabY, { steps: 8 })
-  await page.mouse.up()
-  const after = await block.boundingBox()
-  expect(after?.x ?? 0).toBeGreaterThan(before.x)
+  // Firing that one cell takes the scene off, since it is no longer the scene.
+  await cell.locator('.cell').tap()
+  await expect(page.locator('.pill.live')).not.toContainText('verse')
 })
 
 test('every control is big enough to hit', async ({ page }) => {
@@ -152,12 +140,14 @@ test('every control is big enough to hit', async ({ page }) => {
 
 test('the pane switcher reports what is happening in the pane you cannot see', async ({ page }) => {
   await page.goto('.')
-  await page.getByRole('button', { name: 'Play' }).tap()
-
+  // Nothing has been fired yet, so there is nothing to report.
   await expect(page.locator('.pane-mark.live')).toHaveCount(0)
-  await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').tap()
 
-  // Fire a scene, walk away from the stage, and the switcher still says so.
+  // Play starts a scene, so it is now reporting something.
+  await page.getByRole('button', { name: 'Play' }).tap()
+  await expect(page.locator('.pane-bar .pane-mark.live')).toBeVisible()
+
+  // Walk away from the stage and the switcher still says so.
   await paneButton(page, 'editor').tap()
   await expect(page.locator('.pane-bar .pane-mark.live')).toBeVisible()
 

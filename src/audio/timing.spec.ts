@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barToCycle, cpsFor, nextBoundary, slotCycles, stepsPerCycle, wrap } from './timing'
+import { cpsFor, nextBoundary, slotCycles, stepsPerCycle, wrap } from './timing'
 
 describe('stepsPerCycle', () => {
   it('reads the note division', () => {
@@ -60,11 +60,5 @@ describe('wrap', () => {
     expect(wrap(9, 4)).toBe(1)
     expect(wrap(-1, 4)).toBe(3)
     expect(wrap(3, 0)).toBe(0)
-  })
-})
-
-describe('barToCycle', () => {
-  it('converts through cyclesPerBar', () => {
-    expect(barToCycle(4, 2)).toBe(8)
   })
 })

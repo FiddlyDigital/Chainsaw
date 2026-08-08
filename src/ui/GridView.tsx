@@ -9,7 +9,7 @@ import { TrackMix } from './TrackMix'
  * Session view (PRD §8.5): columns are tracks, rows are scenes, Ableton's way
  * round. Clicking a scene's row header fires every cell in it at once; clicking
  * one cell fires only that track. Both are quantized by the transport's
- * quantize setting, and neither touches the arrangement.
+ * quantize setting.
  */
 export function GridView() {
   const project = useProject((state) => state.project)
@@ -58,11 +58,7 @@ export function GridView() {
                   <span className="track-number">
                     {track}
                     {overrides[track] && (
-                      <button
-                        className="mini"
-                        onClick={() => clearTrack(track)}
-                        title="Hand this track back to the arrangement"
-                      >
+                      <button className="mini" onClick={() => clearTrack(track)} title="Stop this track">
                         ×
                       </button>
                     )}
@@ -109,7 +105,12 @@ export function GridView() {
                     >
                       ↓
                     </button>
-                    <button className="mini" onClick={() => removeScene(index)} title="Delete scene">
+                    <button
+                      className="mini"
+                      onClick={() => removeScene(index)}
+                      aria-label={`Delete scene ${scene.name}`}
+                      title="Delete scene"
+                    >
                       ×
                     </button>
                   </span>
@@ -161,8 +162,7 @@ export function GridView() {
           follow
         </label>
         <span className="hint keys">
-          click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc returns to the
-          arrangement
+          click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc stops everything
         </span>
       </div>
     </div>

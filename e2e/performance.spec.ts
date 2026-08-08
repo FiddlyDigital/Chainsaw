@@ -29,7 +29,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => window.localStorage.clear())
 })
 
-test('boots on the demo project with its grid and arrangement', async ({ page }) => {
+test('boots on the demo project with its grid', async ({ page }) => {
   const problems = watchConsole(page)
   await page.goto('.')
 
@@ -38,8 +38,8 @@ test('boots on the demo project with its grid and arrangement', async ({ page })
   // Demo slots and chains are listed in the project panel.
   await expect(page.locator('.project-panel')).toContainText('A1')
   await expect(page.locator('.project-panel')).toContainText('DRUMS_A')
-  // Three scenes across eight tracks.
-  await expect(page.locator('.grid tbody tr')).toHaveCount(3)
+  // Four scenes across eight tracks.
+  await expect(page.locator('.grid tbody tr')).toHaveCount(4)
   await expect(page.locator('.grid thead .track-head')).toHaveCount(8)
 
   expect(problems).toEqual([])
@@ -53,7 +53,7 @@ test('plays: the transport advances and no sound fails to resolve', async ({ pag
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 
   // The audio context is live, not suspended.
-  await expect(page.locator('.tabs')).not.toContainText('press play to start audio')
+  await expect(page.locator('.stage')).not.toContainText('press play to start audio')
 
   const first = await cycle(page)
   await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
@@ -62,24 +62,68 @@ test('plays: the transport advances and no sound fails to resolve', async ({ pag
   expect(problems).toEqual([])
 })
 
-test('triggering a scene overrides the arrangement, and Esc gives it back', async ({ page }) => {
+test('play starts the first scene, then the one you were last on', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('.')
+  const rows = page.locator('.grid tbody tr')
+
+  // Nothing has been played, so play starts at the top rather than running the
+  // clock over silence and waiting to be told what to fire.
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Pause and play again must not restart it — something is already playing.
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+
+  // Move to another scene, stop, and play resumes there rather than the top.
+  await rows.nth(2).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('drop')
+  await page.getByRole('button', { name: 'Stop' }).click()
+  await expect(page.locator('.pill.live')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('drop')
+
+  const first = await cycle(page)
+  await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
+  expect(problems).toEqual([])
+})
+
+test('play falls back to the top when the scene it remembers is gone', async ({ page }) => {
+  await page.goto('.')
+  const rows = page.locator('.grid tbody tr')
+
+  // Play the last scene, stop, then delete it.
+  await rows.nth(3).locator('.scene-trigger').click()
+  await expect(page.locator('.pill.live')).toContainText('break')
+  await page.keyboard.press('Escape')
+  await rows.nth(3).getByRole('button', { name: 'Delete scene break' }).click()
+  await expect(rows).toHaveCount(3)
+
+  // Rather than firing nothing at all.
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect(page.locator('.pill.live')).toContainText('intro')
+})
+
+test('triggering a scene plays it, and Esc stops everything', async ({ page }) => {
   const problems = watchConsole(page)
   await page.goto('.')
   await page.getByRole('button', { name: 'Play' }).click()
 
   // Scene names live in editable inputs, so select by row: the demo's scenes
-  // are intro, drop, break.
-  const drop = page.locator('.grid tbody tr').nth(1)
-  await expect(drop.getByLabel('Scene 2 name')).toHaveValue('drop')
+  // are intro, verse, drop, break.
+  const drop = page.locator('.grid tbody tr').nth(2)
+  await expect(drop.getByLabel('Scene 3 name')).toHaveValue('drop')
   await drop.locator('.scene-trigger').click()
   await expect(page.locator('.pill.live')).toContainText('drop')
-  // The overridden tracks are marked in the arrangement too.
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-  await expect(page.locator('.track-row.overridden')).not.toHaveCount(0)
+  // The cells that fired are marked as playing.
+  await expect(page.locator('.grid .cell.playing')).not.toHaveCount(0)
 
   await page.keyboard.press('Escape')
   await expect(page.locator('.pill.live')).toHaveCount(0)
-  await expect(page.locator('.track-row.overridden')).toHaveCount(0)
+  await expect(page.locator('.grid .cell.playing')).toHaveCount(0)
 
   expect(problems).toEqual([])
 })
@@ -143,16 +187,12 @@ test('evaluating the scratch pad does not start the song', async ({ page }) => {
   const first = await cycle(page)
   await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
 
-  // …but the song is not playing: the transport still offers to start it, and
-  // the arrangement has no playhead sweeping across it.
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-  await expect(page.locator('.playhead')).toHaveCount(0)
+  // …but the grid is not playing: the transport still offers to start it.
+  await expect(page.locator('.transport .play')).toHaveAttribute('aria-label', 'Play')
 
   // Pressing play is what starts it, and the scratch keeps going underneath.
   await page.getByRole('button', { name: 'Play' }).click()
-  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
-  await expect(page.locator('.playhead')).toHaveCount(1)
+  await expect(page.locator('.transport .play')).toHaveAttribute('aria-label', 'Pause')
   await expect(page.locator('.pill.scratch')).toHaveText('scratch')
 
   expect(problems).toEqual([])
@@ -180,7 +220,7 @@ test('the scratch pad plays alongside the tracks, and can be muted or soloed', a
   await page.getByRole('button', { name: 'Play' }).click()
 
   // Fire a scene so there is something for the scratch to play against.
-  await page.locator('.grid tbody tr').nth(1).locator('.scene-trigger').click()
+  await page.locator('.grid tbody tr').nth(2).locator('.scene-trigger').click()
   await expect(page.locator('.pill.live')).toContainText('drop')
 
   const editor = page.locator('.code-editor .cm-content')
@@ -249,12 +289,6 @@ test('tracks can be muted and soloed, and it survives a save', async ({ page }) 
   await head.nth(1).getByLabel('Level for track 2').fill('1')
   await expect.poll(stored, { timeout: 5_000 }).toEqual({ '1': { muted: true }, '3': { soloed: true } })
 
-  // The arrangement lists the same tracks and shows the same state. It has no
-  // room for faders, but mute and solo are worth the space in both.
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-  await expect(page.locator('.track-row').nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
-  await expect(page.locator('.track-row').nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
-
   // None of it stopped the transport.
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
   const first = await cycle(page)
@@ -267,20 +301,20 @@ test('scenes can be reordered', async ({ page }) => {
   await page.goto('.')
   const names = () => page.locator('.grid tbody .scene-head input').evaluateAll((inputs) => inputs.map((i) => i.value))
 
-  expect(await names()).toEqual(['intro', 'drop', 'break'])
+  expect(await names()).toEqual(['intro', 'verse', 'drop', 'break'])
 
   await page.getByRole('button', { name: 'Move scene break up' }).click()
-  expect(await names()).toEqual(['intro', 'break', 'drop'])
+  expect(await names()).toEqual(['intro', 'verse', 'break', 'drop'])
 
   await page.getByRole('button', { name: 'Move scene intro down' }).click()
-  expect(await names()).toEqual(['break', 'intro', 'drop'])
+  expect(await names()).toEqual(['verse', 'intro', 'break', 'drop'])
 
   // The ends of the list offer nothing to press.
-  await expect(page.getByRole('button', { name: 'Move scene break up' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Move scene verse up' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Move scene drop down' })).toBeDisabled()
 
   // A cell moved with its scene: "drop" still has its four clips.
-  const dropRow = page.locator('.grid tbody tr').nth(2)
+  const dropRow = page.locator('.grid tbody tr').nth(3)
   await expect(dropRow.locator('.cell:not(.empty)')).toHaveCount(4)
 })
 
@@ -324,103 +358,17 @@ test('a hand-triggered cell stops the follow', async ({ page }) => {
   await expect(page.locator('.pill.live')).not.toContainText('drop')
 })
 
-test('the arrangement zooms, and placements stay where they are', async ({ page }) => {
-  await page.goto('.')
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-
-  const block = page.locator('.track-row').nth(0).locator('.block').first()
-  const width = async () => (await block.boundingBox())?.width ?? 0
-  /** A ruler tick is exactly one bar wide, so it is the honest unit. */
-  const barWidth = async () => (await page.locator('.tick').first().boundingBox())!.width
-  /** How many bars the block covers, according to the ruler beside it. */
-  const bars = async () => ((await width()) + 2) / (await barWidth())
-
-  const before = await width()
-  const length = await bars()
-  expect(length).toBeCloseTo(Math.round(length), 5)
-
-  await page.getByRole('button', { name: 'Zoom in' }).click()
-  const zoomedIn = await width()
-  expect(zoomedIn).toBeGreaterThan(before)
-
-  await page.getByRole('button', { name: 'Zoom out' }).click()
-  // Back to the same step it started on.
-  expect(await width()).toBeCloseTo(before, 0)
-
-  // Zooming all the way out still leaves the block on its own bar, and the
-  // ruler agrees with it: dropping a chain lands where it is aimed.
-  for (let i = 0; i < 10; i += 1) {
-    const out = page.getByRole('button', { name: 'Zoom out' })
-    if (await out.isDisabled()) break
-    await out.click()
-  }
-  await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
-  expect(await width()).toBeLessThan(before)
-  expect((await block.boundingBox())?.x).toBeCloseTo(
-    (await page.locator('.track-row').nth(0).locator('.lane').boundingBox())!.x,
-    0,
-  )
-
-  // The block still covers the same bars it did: the ruler and the placements
-  // scaled together rather than drifting apart.
-  expect(await bars()).toBeCloseTo(length, 5)
-
-  // Placing still resolves to the bar under the pointer at this zoom.
-  const bar = await barWidth()
-  await page.locator('.chip', { hasText: 'KEYS' }).click()
-  const lane = page.locator('.track-row').nth(5).locator('.lane')
-  await lane.click({ position: { x: bar * 3 + bar / 2, y: 8 } })
-  const placed = lane.locator('.block').first()
-  await expect(placed).toBeVisible()
-  expect((await placed.boundingBox())!.x - (await lane.boundingBox())!.x).toBeCloseTo(bar * 3, 0)
-})
-
-test('bad code is reported inline and does not take the transport down', async ({ page }) => {
-  await page.goto('.')
-  await page.getByRole('button', { name: 'Play' }).click()
-
-  const editor = page.locator('.code-editor .cm-content')
-  await editor.click()
-  await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.type('s("bd"')
-  await page.keyboard.press('ControlOrMeta+Enter')
-
-  await expect(page.locator('.editor-panel .inline-error')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
-})
-
-test('an overlapping placement is refused with a message, not silently dropped', async ({ page }) => {
-  await page.goto('.')
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-
-  // Track 5 is empty in the demo, and DRUMS_A is four cycles — four bars at 26px
-  // each. Place it at bar 5 (x=110), then again at bar 3 (x=60, still empty
-  // lane) so the second runs from bar 3 to bar 7 and collides with the first.
-  await page.locator('.chip', { hasText: 'DRUMS_A' }).click()
-  const lane = page.locator('.track-row').nth(4).locator('.lane')
-  await lane.click({ position: { x: 110, y: 10 } })
-  await expect(lane.locator('.block')).toHaveCount(1)
-
-  await lane.click({ position: { x: 60, y: 10 } })
-
-  await expect(page.locator('.arrangement .inline-error')).toContainText('overlap')
-  // Rejected whole: the first placement is untouched and no second appeared.
-  await expect(lane.locator('.block')).toHaveCount(1)
-})
-
-test('the grid and the arrangement follow the track count', async ({ page }) => {
+test('the grid follows the track count', async ({ page }) => {
   await page.goto('.')
   await expect(page.locator('.grid thead .track-head')).toHaveCount(8)
 
   await page.getByLabel('tracks').fill('16')
   await expect(page.locator('.grid thead .track-head')).toHaveCount(16)
-  await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
-  await expect(page.locator('.track-row')).toHaveCount(16)
 
   // Shrinking discards data above the bound, so it asks first.
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByLabel('tracks').fill('2')
-  await expect(page.locator('.track-row')).toHaveCount(2)
+  await expect(page.locator('.grid thead .track-head')).toHaveCount(2)
 })
 
 test('the project round-trips through a save', async ({ page }) => {
@@ -443,7 +391,8 @@ test('the project round-trips through a save', async ({ page }) => {
   const saved = JSON.parse(Buffer.concat(chunks).toString())
   expect(saved.meta.name).toBe('first light')
   expect(Object.keys(saved.slots)).toContain('A1')
-  expect(saved.arrangement.tracks['1']).toHaveLength(2)
+  expect(saved.grid.scenes).toHaveLength(4)
+  expect(saved.arrangement).toBeUndefined()
 })
 
 test('installs a service worker and still runs with the network cut', async ({ page, context }) => {

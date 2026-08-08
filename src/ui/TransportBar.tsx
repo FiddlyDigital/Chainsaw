@@ -43,7 +43,7 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
   const stop = useRuntime((state) => state.stop)
   const activeScene = useRuntime((state) => state.activeScene)
   const overrides = useRuntime((state) => state.overrides)
-  const returnToArrangement = useRuntime((state) => state.returnToArrangement)
+  const stopAll = useRuntime((state) => state.stopAll)
   const midiOutputs = useRuntime((state) => state.midiOutputs)
   const midiOutputId = useRuntime((state) => state.midiOutputId)
   const enableMidi = useRuntime((state) => state.enableMidi)
@@ -63,7 +63,7 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
         {/*
          * Reflects the song, not the clock. Evaluating a scratch pattern runs
          * the clock without the song, and showing that as "playing" would say
-         * the arrangement is running when it is silent.
+         * the grid is running when it is silent.
          */}
         <button
           className={`play ${playing ? 'on' : ''}`}
@@ -92,8 +92,8 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
         </span>
       )}
       {live && (
-        <button className="pill live" onClick={returnToArrangement} title="Return to arrangement (Esc)">
-          live{activeScene ? `: ${activeScene}` : ''} ⏎ arrangement
+        <button className="pill live" onClick={stopAll} title="Stop every clip (Esc)">
+          live{activeScene ? `: ${activeScene}` : ''} ✕
         </button>
       )}
       {/* The scratch layer sounds from wherever you are, so it has to be
@@ -252,5 +252,5 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
 }
 
 function confirmTruncate(next: number): boolean {
-  return window.confirm(`Reducing to ${next} tracks removes any arrangement and scene cells above track ${next}. Continue?`)
+  return window.confirm(`Reducing to ${next} tracks removes any scene cells above track ${next}. Continue?`)
 }

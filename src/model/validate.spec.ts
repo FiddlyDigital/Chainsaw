@@ -55,12 +55,6 @@ describe('references', () => {
     expect(messages(project)).toContain('chain "CH" step 0 references unknown slot "gone"')
   })
 
-  it('catches an arrangement placement pointing at a missing chain', () => {
-    const project = base()
-    project.arrangement.tracks['1'] = [{ bar: 0, chain: 'gone', len: 4 }]
-    expect(messages(project)[0]).toMatch(/unknown chain "gone"/)
-  })
-
   it('catches a grid cell pointing at nothing', () => {
     const project = base()
     project.grid.scenes = [{ name: 'one', cells: { '1': 'gone' } }]
@@ -82,35 +76,14 @@ describe('references', () => {
   it('rejects a track number above the track count', () => {
     const project = base()
     project.chains.CH.track = 9
-    project.arrangement.tracks['9'] = []
-    const found = messages(project)
-    expect(found.some((message) => message.includes('chain "CH" is on track 9'))).toBe(true)
-    expect(found.some((message) => message.includes('arrangement track 9'))).toBe(true)
+    expect(messages(project).some((message) => message.includes('chain "CH" is on track 9'))).toBe(true)
   })
 
-  it('rejects overlapping placements on one track', () => {
-    const project = base()
-    project.arrangement.tracks['1'] = [
-      { bar: 0, chain: 'CH', len: 8 },
-      { bar: 4, chain: 'CH', len: 4 },
-    ]
-    expect(messages(project)[0]).toMatch(/placements overlap on track 1/)
-  })
-
-  it('accepts placements that touch but do not overlap', () => {
-    const project = base()
-    project.arrangement.tracks['1'] = [
-      { bar: 0, chain: 'CH', len: 4 },
-      { bar: 4, chain: 'CH', len: 4 },
-    ]
-    expect(validateProject(project).ok).toBe(true)
-  })
-
-  it('allows the same chain on two different tracks at the same bar', () => {
-    const project = base()
-    project.arrangement.tracks['1'] = [{ bar: 0, chain: 'CH', len: 4 }]
-    project.arrangement.tracks['2'] = [{ bar: 0, chain: 'CH', len: 4 }]
-    expect(validateProject(project).ok).toBe(true)
+  it('rejects a document carrying a field the format no longer has', () => {
+    // The schema is closed, so this is what makes the migration necessary
+    // rather than merely tidy.
+    const project = { ...base(), arrangement: { tracks: {} } }
+    expect(validateProject(project).ok).toBe(false)
   })
 
   it('rejects duplicate scene names', () => {

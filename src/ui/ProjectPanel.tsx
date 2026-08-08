@@ -47,15 +47,9 @@ export function ProjectPanel() {
   }
 
   const deleteChain = (id: string) => {
-    const uses = referencesToChain(project, id)
-    const count = uses.tracks.length + uses.scenes.length
-    if (count > 0) {
-      const where = [
-        uses.tracks.length ? `the arrangement on track ${uses.tracks.join(', ')}` : null,
-        uses.scenes.length ? `${uses.scenes.length} scene${uses.scenes.length === 1 ? '' : 's'}` : null,
-      ]
-        .filter(Boolean)
-        .join(' and ')
+    const { scenes } = referencesToChain(project, id)
+    if (scenes.length > 0) {
+      const where = `${scenes.length} scene${scenes.length === 1 ? '' : 's'}`
       if (!window.confirm(`Chain ${id} is used in ${where}. Delete anyway?`)) return
     }
     removeChain(id)
