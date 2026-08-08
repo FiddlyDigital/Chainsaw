@@ -55,12 +55,23 @@ export function audible<T>(tracks: T[], scratch: T | null, mode: ScratchMode): T
  */
 export function trackAudible(settings: TrackSettings | undefined, anySoloed: boolean): boolean {
   if (settings?.muted) return false
+  // A fader all the way down is silence, so there is nothing to schedule —
+  // triggering voices at zero volume costs the same as triggering them at full.
+  if (settings?.gain === 0) return false
   return anySoloed ? Boolean(settings?.soloed) : true
 }
 
 /** Whether any track in the project is soloed. */
 export function anySoloed(tracks: Record<string, TrackSettings> | undefined): boolean {
   return Object.values(tracks ?? {}).some((settings) => settings.soloed)
+}
+
+/** Scale a pattern's output level, leaving everything else about it alone. */
+function withPostgain(pattern: StrudelPattern, gain: number): StrudelPattern {
+  return pattern.withValue((value: Record<string, unknown>) => ({
+    ...value,
+    postgain: (typeof value?.postgain === 'number' ? value.postgain : 1) * gain,
+  }))
 }
 
 export interface EngineStatus {
@@ -272,7 +283,12 @@ export class Engine {
           else errors[`slot ${segment.slot}`] = String(error)
         }
       }
-      if (entries.length && heard) trackPatterns.push(timelinePattern(entries, timeline.loop, offset))
+      if (!entries.length || !heard) continue
+      // `postgain` rather than `gain`, so a fader never fights the dynamics a
+      // slot or a chain step wrote into the pattern itself.
+      const gain = project.tracks?.[String(number)]?.gain ?? 1
+      const pattern = timelinePattern(entries, timeline.loop, offset)
+      trackPatterns.push(gain === 1 ? pattern : withPostgain(pattern, gain))
     }
     // Every track is still compiled under `solo`, so its errors are still
     // reported and coming out of solo needs no recompile.

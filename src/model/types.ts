@@ -93,7 +93,18 @@ export interface Scene {
 export interface TrackSettings {
   muted?: boolean
   soloed?: boolean
+  /** Fader, 0 to 1. Unity is 1, which is also the default. */
+  gain?: number
 }
+
+/**
+ * What each mixer field means when it is absent.
+ *
+ * The sparse record is kept sparse by comparing against these, which has to be
+ * per-field rather than a truthiness test: `gain: 0` is falsy and meaningful,
+ * and `gain: 1` is truthy and the default — exactly backwards from the flags.
+ */
+export const TRACK_DEFAULTS: Required<TrackSettings> = { muted: false, soloed: false, gain: 1 }
 
 export interface Project {
   meta: Meta

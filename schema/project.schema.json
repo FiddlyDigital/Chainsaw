@@ -120,7 +120,8 @@
         "additionalProperties": false,
         "properties": {
           "muted": { "type": "boolean" },
-          "soloed": { "type": "boolean" }
+          "soloed": { "type": "boolean" },
+          "gain": { "type": "number", "minimum": 0, "maximum": 1 }
         }
       }
     },
