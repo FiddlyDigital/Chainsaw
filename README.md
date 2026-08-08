@@ -78,14 +78,24 @@ work as normal.
 
 ## Playing it
 
-**Every track has a mute and a solo**, next to its number in both the grid's
-column headings and the arrangement's row labels — needing to change pane to
-drop a track is exactly the wrong thing mid-set. Solo is exclusive: the moment
-anything is soloed, everything else drops out. Mute wins over solo on the same
-track, so a stray solo cannot resurrect a track you deliberately killed. Both
-are document state, so a set saved mid-performance restores what was killed,
-both are undoable, and both land on a boundary like every other change. The
-record is sparse — a track nobody has touched leaves no trace in the file.
+**Every track has a fader, a mute and a solo.** Mute and solo sit next to the
+track number in both the grid's column headings and the arrangement's row
+labels — needing to change pane to drop a track is exactly the wrong thing
+mid-set. The fader is in the grid only; the arrangement's row labels are 92px
+of a scrolling timeline.
+
+Solo is exclusive: the moment anything is soloed, everything else drops out.
+Mute wins over solo on the same track, so a stray solo cannot resurrect a track
+you deliberately killed. The fader is `postgain`, so it never fights the
+dynamics a slot or a chain step wrote into the pattern itself, and a fader all
+the way down schedules nothing at all rather than triggering silent voices.
+
+All three are document state, so a set saved mid-performance restores what was
+killed; all three are undoable and land on a boundary like every other change.
+The record is sparse — a track nobody has touched leaves no trace in the file,
+which is why the cleanup compares field by field against declared defaults
+rather than by truthiness: a fader at 0 is falsy and meaningful, and a fader at
+1 is truthy and the default.
 
 **Scenes can be reordered** with ↑/↓, and **`follow` walks the list**: a scene
 runs until its longest cell has had one full pass, then the next fires. The
@@ -113,8 +123,16 @@ playing bar 1 and playing along with you.
 
 Access is requested when you pick an output rather than on load: asking for a
 permission nobody has shown interest in is how you get it denied for the
-session. The chosen port is not saved — a port id means nothing on another
-machine — so it needs picking again after a reload.
+session. The choice is remembered in `localStorage` rather than in the project,
+because a port id means nothing on another machine — the same reason the master
+fader is not in there either.
+
+Reconnecting on load is conditional on `navigator.permissions` already
+reporting `midi` as granted. Calling `requestMIDIAccess` outright would put a
+prompt in front of someone who has never asked for MIDI, on every boot; if the
+browser will not answer the permission question, Chainsaw waits to be asked
+properly instead of gambling. A remembered device that is not plugged in this
+time simply leaves the clock off.
 
 ## The scratch pad
 
