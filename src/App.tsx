@@ -10,6 +10,7 @@ import { EditorPanel } from './ui/EditorPanel'
 import { GridView } from './ui/GridView'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { TransportBar } from './ui/TransportBar'
+import { UpdateBanner } from './ui/UpdateBanner'
 import { useAutosave, useEngineSync, useSceneFollow, useShortcuts } from './ui/useAppEffects'
 import { useKeyboardInset } from './ui/viewport'
 
@@ -147,6 +148,7 @@ export default function App() {
         </button>
       </nav>
 
+      <UpdateBanner />
       {notice && <div className="notice">{notice}</div>}
     </div>
   )

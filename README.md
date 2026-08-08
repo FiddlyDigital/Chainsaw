@@ -228,6 +228,30 @@ nothing is too small to hit, the pen tool and block dragging work from a
 finger, and a whole pattern can be typed without ever leaving the letter
 keyboard.
 
+## Updates
+
+An update is never applied on its own: swapping the service worker reloads the
+page, and doing that in the middle of a set would stop the music. A new build
+installs in the background, waits, and Chainsaw offers it — **a new version of
+Chainsaw is ready**, with a reload button and a "not now".
+
+That deliberate wait is also the trap, and it is worth knowing about because
+the failure is silent. A waiting worker does not control the page, and a plain
+reload does not hand it control: the old worker keeps serving the old cache, so
+reloading appears to do nothing and the app looks stuck on an old version for
+as long as any tab stays open. Two things have to happen, and both live in
+`src/pwa.ts` — something has to _look_ for a new build, and something has to
+_tell_ the app one is ready. Without the first, a long-lived tab never notices;
+without the second, it notices and says nothing.
+
+So Chainsaw checks on a timer, when the tab becomes visible again, and when the
+network comes back — the browser's own check happens on navigation, which is no
+help at all to a sequencer that has been open since before the deploy.
+
+`e2e/update.spec.ts` tests this against a real deploy rather than a stub: the
+test server reads from disk on every request, and the worker's bytes are what
+the browser compares, so rewriting `dist/sw.js` mid-test _is_ a deploy.
+
 ## The project file
 
 One `.chainsaw.json` document, validated on load and on every mutation against

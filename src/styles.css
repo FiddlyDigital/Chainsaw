@@ -1014,6 +1014,39 @@ button.mini.mix.soloed {
   padding: 8px 14px;
 }
 
+/* ── update prompt ─────────────────────────────────────────── */
+
+/*
+ * Anchored to the right rather than centred, because the bottom of the screen
+ * is already the notice toast's and, on a phone, the pane switcher's. Floats
+ * rather than taking a row, so a build landing mid-set does not reflow the
+ * grid under the performer's hands. Deliberately louder than a toast, and it
+ * does not time out — it is the only thing that will ever say a new build is
+ * waiting.
+ */
+.update-banner {
+  position: fixed;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 12px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+}
+
+.update-apply {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
 /* ── pane switcher (narrow screens only) ───────────────────── */
 
 .pane-bar {
@@ -1253,6 +1286,13 @@ button.mini.mix.soloed {
   }
 
   .notice {
+    bottom: calc(58px + env(safe-area-inset-bottom));
+  }
+
+  /* Full width above the pane switcher: there is no room beside it. */
+  .update-banner {
+    left: 8px;
+    right: 8px;
     bottom: calc(58px + env(safe-area-inset-bottom));
   }
 
