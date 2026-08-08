@@ -14,7 +14,7 @@
 import { Cyclist, stack } from '@strudel/core'
 import { getAudioContext, initAudio, webaudioOutput } from '@strudel/webaudio'
 import type { Project, Quantize, TrackSettings } from '../model/types'
-import { PatternError, compile, compileSlot, initPatternScope } from './compile'
+import { PatternError, clearPatternCache, compile, compileSlot, initPatternScope, runPrebake } from './compile'
 import { MidiClock } from './midi'
 import { type Piece, type StrudelPattern, pieces, silence, timelinePattern } from './patterns'
 import { type LiveOverride, resolveTracks } from './timeline'
@@ -122,6 +122,8 @@ export class Engine {
    * the clock must not start the song.
    */
   private tracksPlaying = true
+  /** Why the prebake last failed, reported alongside the slots' own errors. */
+  private prebakeError: string | null = null
   /**
    * MIDI clock out. It reads the transport rather than being pushed at, so it
    * cannot drift out of step with the scheduler between transport events.
@@ -178,11 +180,37 @@ export class Engine {
   }
 
   async setProject(project: Project): Promise<void> {
-    const tempoChanged =
-      this.project?.meta.bpm !== project.meta.bpm || this.project?.meta.cyclesPerBar !== project.meta.cyclesPerBar
+    const previous = this.project
+    const tempoChanged = previous?.meta.bpm !== project.meta.bpm || previous?.meta.cyclesPerBar !== project.meta.cyclesPerBar
+    const prebakeChanged = previous?.prebake !== project.prebake
     this.project = project
     if (tempoChanged) this.scheduler.setCps(cpsFor(project.meta))
+    // Before the rebuild, always: a slot that calls a helper cannot compile
+    // until the helper exists.
+    if (prebakeChanged) await this.applyPrebake(project.prebake ?? '')
     await this.rebuild()
+  }
+
+  /**
+   * Run the prebake and remember whether it worked.
+   *
+   * The compile cache has to go with it. It is keyed on the code string, which
+   * says nothing about the definitions that code was compiled against — after a
+   * prebake changes, every cached pattern is potentially built on an older
+   * version of a helper.
+   *
+   * Redefining is all this can do. Definitions land by side effect on Strudel's
+   * registry and on `Pattern.prototype`, and there is no undoing that: a helper
+   * deleted from the prebake stays callable until the page is reloaded.
+   */
+  private async applyPrebake(code: string): Promise<void> {
+    clearPatternCache()
+    this.prebakeError = null
+    try {
+      await runPrebake(code)
+    } catch (error) {
+      this.prebakeError = error instanceof Error ? error.message : String(error)
+    }
   }
 
   async setOverrides(overrides: Record<number, LiveOverride>): Promise<void> {
@@ -287,6 +315,9 @@ export class Engine {
     const generation = (this.generation += 1)
 
     const errors: Record<string, string> = {}
+    // A broken prebake is reported like a broken slot, and stops neither the
+    // transport nor the slots that do not depend on it.
+    if (this.prebakeError) errors.prebake = this.prebakeError
     const tracks = resolveTracks(project, this.overrides)
     const trackPatterns: StrudelPattern[] = []
     const soloing = anySoloed(project.tracks)

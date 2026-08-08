@@ -179,6 +179,27 @@ describe('scene order', () => {
   })
 })
 
+describe('the prebake', () => {
+  it('stores code and validates', () => {
+    expect(store().setPrebake("register('wide', (x, pat) => pat.room(x))")).toBe(true)
+    expect(project().prebake).toBe("register('wide', (x, pat) => pat.room(x))")
+    expect(validateProject(project()).ok).toBe(true)
+  })
+
+  it('leaves no trace when emptied, like the mixer', () => {
+    store().setPrebake('x')
+    store().setPrebake('   ')
+    expect(project().prebake).toBeUndefined()
+    expect(validateProject(project()).ok).toBe(true)
+  })
+
+  it('is undoable like any other edit', () => {
+    store().setPrebake('x')
+    store().undo()
+    expect(project().prebake).toBeUndefined()
+  })
+})
+
 describe('the track mixer', () => {
   it('records a mute and validates', () => {
     expect(store().setTrack(2, { muted: true })).toBe(true)

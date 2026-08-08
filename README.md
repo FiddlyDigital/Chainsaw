@@ -137,6 +137,42 @@ browser will not answer the permission question, Chainsaw waits to be asked
 properly instead of gambling. A remembered device that is not plugged in this
 time simply leaves the clock off.
 
+## Prebake: your own functions
+
+A project carries a **prebake** — a block of code that runs once, before
+anything else compiles, for its side effects. It is where custom pattern
+methods, presets and helpers go, so every slot can call them:
+
+```js
+register('wide', (amount, pat) => pat.room(amount).roomsize(3))
+```
+
+…and then any slot can say `note("c e g").wide(0.5)`. The demo project ships
+exactly that, so there is a working example in the first thing you open.
+
+**Definitions have to be side-effecting.** Each slot is evaluated in its own
+scope, so a bare `const foo = …` in the prebake is invisible everywhere else.
+What survives is what Strudel and JavaScript keep globally:
+`register('name', …)`, a method on `Pattern.prototype`, an assignment to
+`globalThis`. This is the same shape real Strudel prebakes already have.
+
+**Single-quote anything that is a name.** Strudel's transpiler rewrites every
+_double-quoted_ string into a mini-notation pattern — exactly what you want for
+`s("bd*4")`, and exactly what you do not want for a function's name.
+`register("verb", …)` registers under a pattern rather than a name: it throws
+nothing, registers nothing, and the only symptom is a slot much later saying
+`verb is not a function`. Chainsaw warns about that one case in the editor,
+because nothing else ever would.
+
+Committing the prebake re-runs it and clears the compile cache, since a cached
+pattern says nothing about which version of a helper it was built against. One
+thing it cannot do is _un_-define: registration is a side effect on Strudel's
+registry and on `Pattern.prototype`, so a helper deleted from the prebake stays
+callable until the page is reloaded.
+
+A broken prebake is reported inline like a broken slot and stops neither the
+transport nor the slots that do not depend on it.
+
 ## The scratch pad
 
 The scratch pad is the stock Strudel REPL, kept intact: type an expression, hit

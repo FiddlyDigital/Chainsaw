@@ -101,6 +101,11 @@ export const TRACK_DEFAULTS: Required<TrackSettings> = { muted: false, soloed: f
 
 export interface Project {
   meta: Meta
+  /**
+   * Definitions every slot can use: custom functions, pattern methods, presets.
+   * Evaluated once, for its side effects, before anything else compiles.
+   */
+  prebake?: string
   instruments: Record<string, Instrument>
   slots: Record<string, Slot>
   chains: Record<string, Chain>
