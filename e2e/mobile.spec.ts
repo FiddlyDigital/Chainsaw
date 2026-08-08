@@ -162,6 +162,20 @@ test('a scene fires from touch, and a cell can be reassigned', async ({ page }) 
   await expect(page.locator('.pill.live')).not.toContainText('verse')
 })
 
+test('a cell opens its editor from the grid, and the sheet comes up with it', async ({ page }) => {
+  await page.goto('.')
+
+  // A double tap works here where it is unreliable on a desktop, because the
+  // transport does not change height on a phone: the controls that would wrap
+  // it are already folded into the tray.
+  const before = await page.locator('.transport').boundingBox()
+  await page.locator('.grid tbody tr').first().locator('button.cell').first().dblclick()
+
+  await expect(page.locator('.editor-head')).toContainText('slot')
+  await expect(page.locator('.sheet-editor')).toHaveClass(/open/)
+  expect((await page.locator('.transport').boundingBox())?.height).toBe(before?.height)
+})
+
 test('every control is big enough to hit', async ({ page }) => {
   await page.goto('.')
   await page.locator('.transport-toggle').tap()
