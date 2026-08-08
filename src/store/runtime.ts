@@ -14,12 +14,14 @@ import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
 
 /**
- * Which of the three columns is on screen when there is only room for one.
- * Ignored by the layout above the narrow breakpoint, where all three are
- * visible at once, but still tracked so a phone rotated to landscape and back
- * returns to where the performer was.
+ * The panel currently slid over the grid, or null for none.
+ *
+ * The grid is the song, so on a narrow screen it is the screen: it stays put
+ * and the two side panels come over it as sheets. Ignored by the layout above
+ * the narrow breakpoint, where all three are columns side by side, but still
+ * tracked so a phone rotated to landscape and back finds what it left open.
  */
-export type Pane = 'project' | 'stage' | 'editor'
+export type Sheet = 'project' | 'editor' | null
 
 /**
  * Something the performer needs told, from anywhere in the app.
@@ -67,8 +69,8 @@ export interface RuntimeStore {
    * the song, so the two are not the same question.
    */
   tracksPlaying: boolean
-  /** Which single column is shown on a narrow screen. */
-  pane: Pane
+  /** Which panel is over the grid on a narrow screen. */
+  sheet: Sheet
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
   /**
@@ -98,7 +100,9 @@ export interface RuntimeStore {
   notify: (message: string, tone?: Notice['tone']) => void
   dismissNotice: () => void
 
-  setPane: (pane: Pane) => void
+  setSheet: (sheet: Sheet) => void
+  /** Open this panel, or close it if it is the one already open. */
+  toggleSheet: (sheet: Exclude<Sheet, null>) => void
   setEditing: (slot: string | null) => void
   setEditingPrebake: (open: boolean) => void
   setEditingChain: (chain: string | null) => void
@@ -183,7 +187,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   sceneEndsAt: null,
   autoAdvance: false,
   tracksPlaying: false,
-  pane: 'stage',
+  sheet: null,
   editing: null,
   editingPrebake: false,
   editingChain: null,
@@ -201,14 +205,17 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
   dismissNotice: () => set({ notice: null }),
 
-  setPane: (pane) => set({ pane }),
+  setSheet: (sheet) => set({ sheet }),
+  toggleSheet: (sheet) => set({ sheet: get().sheet === sheet ? null : sheet }),
   // Opening something for editing brings its editor on screen. On a wide
-  // layout the pane is inert and this changes nothing; on a narrow one it is
+  // layout the sheet is inert and this changes nothing; on a narrow one it is
   // the difference between tapping a slot and appearing to do nothing.
-  setEditing: (editing) => set(editing === null ? { editing } : { editing, editingPrebake: false, pane: 'editor' }),
+  setEditing: (editing) => set(editing === null ? { editing } : { editing, editingPrebake: false, sheet: 'editor' }),
   setEditingPrebake: (editingPrebake) =>
-    set(editingPrebake ? { editingPrebake, editing: null, pane: 'editor' } : { editingPrebake }),
-  setEditingChain: (editingChain) => set(editingChain === null ? { editingChain } : { editingChain, pane: 'stage' }),
+    set(editingPrebake ? { editingPrebake, editing: null, sheet: 'editor' } : { editingPrebake }),
+  // A chain is edited in its own panel over the grid, so anything already
+  // covering the grid is in its way.
+  setEditingChain: (editingChain) => set(editingChain === null ? { editingChain } : { editingChain, sheet: null }),
   setScratch: (scratch) => set({ scratch }),
 
   setMasterVolume(volume) {

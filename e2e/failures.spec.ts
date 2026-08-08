@@ -33,21 +33,20 @@ test('a failure nobody is waiting on still reaches the performer', async ({ page
   await expect(notice).toHaveClass(/bad/)
 })
 
-test('and reaches it on a phone, whichever pane is up', async ({ page }) => {
+test('and reaches it on a phone, with a panel over the grid', async ({ page }) => {
   await page.setViewportSize(PHONE)
   await page.goto('.')
 
   // The grid, which is not where errors used to be written.
-  await page.locator('.pane-bar').getByRole('button', { name: 'grid' }).click()
   await failFromNowhere(page, 'something went wrong')
-
   await expect(page.locator('.notice')).toBeVisible()
 
-  // …and on the editor pane too, without being raised again.
+  // …and with a panel over the grid too, without being raised again.
   await page
-    .locator('.pane-bar')
+    .locator('.dock')
     .getByRole('button', { name: /scratch|slot/ })
     .click()
+  await expect(page.locator('.editor-panel')).toBeVisible()
   await expect(page.locator('.notice')).toBeVisible()
 })
 

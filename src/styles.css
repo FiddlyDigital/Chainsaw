@@ -130,12 +130,12 @@ code {
 
 .app {
   display: grid;
-  /* transport / panes / pane switcher — the last is only laid out on a narrow
-     screen, where it is displayed. */
+  /* transport / panels / dock — the last is only laid out on a narrow screen,
+     where it is displayed. */
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   /* `dvh` so a mobile browser's collapsing URL bar cannot leave the transport
-     or the pane switcher below the fold, less whatever the on-screen keyboard
+     or the dock below the fold, less whatever the on-screen keyboard
      is covering on a browser that does not shrink the layout itself. */
   height: calc(100dvh - var(--keyboard, 0px));
 }
@@ -311,7 +311,7 @@ code {
 }
 
 /*
- * What is left of a pane whose render threw. Deliberately plain: it is the one
+ * What is left of a panel whose render threw. Deliberately plain: it is the one
  * thing on screen that has to draw when something else could not.
  */
 .crash {
@@ -654,6 +654,13 @@ button.mini.mix.soloed {
   .cell.playing {
     animation: none;
   }
+
+  /* A sheet still appears and disappears; it just stops travelling to do it. */
+  .sheet,
+  .scrim,
+  .stage {
+    transition: none;
+  }
 }
 
 .cell-name {
@@ -917,16 +924,26 @@ button.mini.mix.soloed {
   border-color: color-mix(in srgb, var(--ok) 45%, transparent);
 }
 
-/* ── pane switcher (narrow screens only) ───────────────────── */
+/* ── sheets and their dock (narrow screens only) ───────────── */
 
-.pane-bar {
-  display: none;
-  gap: 4px;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+/*
+ * On a wide screen a sheet is not an element: `display: contents` drops it out
+ * of the layout so the panel inside is a column of `.body` exactly as if the
+ * wrapper were not there. Everything that makes it a sheet is in the narrow
+ * query at the bottom of this file, which is also the only place the dock, the
+ * scrim and the handle exist at all.
+ */
+.sheet {
+  display: contents;
 }
 
-.pane-bar button {
+.sheet-handle,
+.scrim,
+.dock {
+  display: none;
+}
+
+.dock button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -937,19 +954,15 @@ button.mini.mix.soloed {
   white-space: nowrap;
 }
 
-/* What is happening in a pane you cannot currently see. */
-.pane-mark {
+/* What is happening behind a panel that is covering it. */
+.dock-mark {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.pane-mark.live {
-  background: var(--accent);
-}
-
-.pane-mark.bad {
+.dock-mark.bad {
   background: var(--bad);
 }
 
@@ -1092,29 +1105,32 @@ button.mini.mix.soloed {
   }
 }
 
-/* ── one pane at a time ────────────────────────────────────── */
+/* ── the grid, and what slides over it ─────────────────────── */
 
 /*
- * Phones, and anything short enough that stacking two panes would leave each
- * of them a couple of centimetres. All three panes stay in the document and
- * keep their scroll positions and editor state; `visibility` hides the two
- * that are not selected, which also takes them out of the tab order and the
- * accessibility tree.
+ * Phones, and anything short enough that stacking two panels would leave each
+ * of them a couple of centimetres.
+ *
+ * The grid is the song, so here it is the screen: it keeps the whole body and
+ * never goes away. The project panel and the editor come over it as sheets and
+ * leave again — which is the difference between a phone that shows you one
+ * third of the app at a time and one that shows you the set with a drawer open
+ * on top of it.
+ *
+ * Every panel stays in the document either way, keeping its scroll position
+ * and its editor state. A closed sheet is `visibility: hidden`, which also
+ * takes it out of the tab order and the accessibility tree, so a screen reader
+ * is not walking through a panel that is off the bottom of the screen.
  */
 @media (max-width: 760px), (max-height: 560px) and (max-width: 1100px) {
   .body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
+    position: relative;
   }
 
   .body > * {
     grid-area: 1 / 1;
-  }
-
-  .body[data-pane='project'] > :not(.project-panel),
-  .body[data-pane='stage'] > :not(.stage),
-  .body[data-pane='editor'] > :not(.editor-panel) {
-    visibility: hidden;
   }
 
   .stage,
@@ -1122,10 +1138,102 @@ button.mini.mix.soloed {
     border: none;
   }
 
-  .pane-bar {
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    /* Anchored to the bottom and only as tall as it needs to be: the grid
+       above it stays visible, so you can see what is playing while you edit
+       what plays next. */
+    align-self: end;
+    width: 100%;
+    height: min(74%, 100%);
+    z-index: 4;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transform: translateY(100%);
+    visibility: hidden;
+    transition:
+      transform 220ms ease,
+      visibility 220ms;
+  }
+
+  .sheet.open {
+    transform: none;
+    visibility: visible;
+  }
+
+  /* The panel fills the sheet and does its own scrolling, so the sheet itself
+     never scrolls out from under the handle. */
+  .sheet > .project-panel,
+  .sheet > .editor-panel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .sheet-handle {
+    display: block;
+    flex-shrink: 0;
+    width: 100%;
+    /* A full-width strip, and no shorter than anything else here is: it is a
+       target for a thumb, not a decoration. */
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 14px 14px 0 0;
+    background: transparent;
+    position: relative;
+  }
+
+  /* The grab bar itself. Drawn rather than shipped as a character so it stays
+     centred whatever the font does. */
+  .sheet-handle::after {
+    content: '';
+    position: absolute;
+    top: 13px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+  }
+
+  .sheet-handle:active::after {
+    background: var(--accent);
+  }
+
+  .scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 220ms ease,
+      visibility 220ms;
+  }
+
+  .body[data-sheet='project'] .scrim,
+  .body[data-sheet='editor'] .scrim {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .dock {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
+    gap: 4px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
     padding: 5px max(6px, env(safe-area-inset-left)) calc(5px + env(safe-area-inset-bottom))
       max(6px, env(safe-area-inset-right));
   }
@@ -1134,7 +1242,7 @@ button.mini.mix.soloed {
     bottom: calc(58px + env(safe-area-inset-bottom));
   }
 
-  /* Full width above the pane switcher: there is no room beside it. */
+  /* Full width above the dock: there is no room beside it. */
   .update-banner {
     left: 8px;
     right: 8px;
@@ -1223,8 +1331,13 @@ button.mini.mix.soloed {
     width: 92px;
   }
 
+  /* Shaped like the sheets, because it is one: a panel over the grid, with the
+     grid still visible above it. It is inside the stage rather than beside it,
+     so it needs its own rounding rather than the sheet rules. */
   .chain-editor {
     max-height: 60%;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.5);
   }
 
   /* The symbol row is pinned to the bottom of the panel, so the panel itself
@@ -1257,5 +1370,109 @@ button.mini.mix.soloed {
      phone. The ones that state a fact about what is open stay. */
   .hint.keys {
     display: none;
+  }
+}
+
+/*
+ * A phone on its side has the opposite problem: plenty of width, almost no
+ * height. A sheet that takes three quarters of it leaves a strip of grid too
+ * short to read, so here it comes in from the side instead — full height,
+ * half the width — which is also the side each panel sits on when the screen
+ * is wide enough to show all three at once.
+ */
+@media (max-height: 560px) and (max-width: 1100px) and (orientation: landscape) {
+  /*
+   * And no scrim with it. A side panel leaves half the grid genuinely usable,
+   * so dimming it and swallowing taps would take away the one thing this
+   * layout is good for: launching clips with the editor still open. The handle
+   * and the dock are how it closes here.
+   */
+  .scrim {
+    display: none;
+  }
+
+  .body {
+    /* Both the sheet's width and the room the grid gives up for it, so they
+       cannot drift apart. Percentages resolve against the body either way. */
+    --sheet-width: min(50%, 380px);
+  }
+
+  .sheet {
+    align-self: stretch;
+    height: 100%;
+    width: var(--sheet-width);
+    border-radius: 0;
+  }
+
+  /*
+   * The grid moves over rather than hiding underneath. A side panel that
+   * covered the scene column would take the launch buttons with it, which is
+   * most of what the grid is for — so the stage gives up the width instead and
+   * keeps every control it still has room for.
+   */
+  .stage {
+    transition: padding 220ms ease;
+  }
+
+  .body[data-sheet='project'] .stage {
+    padding-left: var(--sheet-width);
+  }
+
+  .body[data-sheet='editor'] .stage {
+    padding-right: var(--sheet-width);
+  }
+
+  .sheet-project {
+    justify-self: start;
+    border-right: 1px solid var(--line);
+    border-top: none;
+    box-shadow: 14px 0 34px rgba(0, 0, 0, 0.5);
+    transform: translateX(-100%);
+  }
+
+  .sheet-editor {
+    justify-self: end;
+    border-left: 1px solid var(--line);
+    border-top: none;
+    box-shadow: -14px 0 34px rgba(0, 0, 0, 0.5);
+    transform: translateX(100%);
+  }
+
+  /* The handle turns with the sheet: a vertical bar down the edge it slides
+     back out towards. */
+  .sheet-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    width: 20px;
+  }
+
+  .sheet-project .sheet-handle {
+    right: 0;
+  }
+
+  .sheet-editor .sheet-handle {
+    left: 0;
+  }
+
+  .sheet-handle::after {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 36px;
+  }
+
+  /* The panel keeps the full width of the sheet; the handle floats over its
+     edge rather than taking a column of it. */
+  .sheet > .project-panel,
+  .sheet > .editor-panel {
+    padding-right: 20px;
+  }
+
+  .sheet-editor > .editor-panel {
+    padding-right: 0;
+    padding-left: 20px;
   }
 }
