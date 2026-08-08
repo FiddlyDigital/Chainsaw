@@ -38,6 +38,9 @@ export function GridView() {
     [project.slots, project.chains],
   )
 
+  /** Open whatever a cell holds in the editor it belongs in. */
+  const openCell = (ref: string) => (project.slots[ref] ? setEditing(ref) : setEditingChain(ref))
+
   const colorOf = (ref: string) =>
     project.slots[ref]?.color ?? project.slots[project.chains[ref]?.steps[0]?.slot ?? '']?.color ?? '#4a5568'
 
@@ -125,8 +128,24 @@ export function GridView() {
                           className={`cell ${playing ? 'playing' : ''}`}
                           style={{ ['--cell' as string]: colorOf(ref) }}
                           onClick={() => triggerCell(track, ref)}
-                          onDoubleClick={() => (project.slots[ref] ? setEditing(ref) : setEditingChain(ref))}
-                          title={`${ref} — ${lengthOf(ref)} cycle${lengthOf(ref) === 1 ? '' : 's'}. Click to trigger, double-click to edit.`}
+                          onDoubleClick={() => openCell(ref)}
+                          /*
+                           * The reliable way in, and the reason there is a
+                           * second one. Firing a clip can change the height of
+                           * the transport — a `live` pill appearing is enough
+                           * to wrap it — and everything below moves with it,
+                           * so the second click of a double-click can land on
+                           * a different control entirely. This is one event
+                           * over one element, so nothing can move underneath
+                           * it: a right-click on a desktop, a long press on a
+                           * phone, and no extra chrome on a cell that is
+                           * already carrying four things.
+                           */
+                          onContextMenu={(event) => {
+                            event.preventDefault()
+                            openCell(ref)
+                          }}
+                          title={`${ref} — ${lengthOf(ref)} cycle${lengthOf(ref) === 1 ? '' : 's'}. Click to trigger. Right-click or double-click to edit.`}
                         >
                           <span className="cell-name">{ref}</span>
                           <span className="cell-len">{formatLength(lengthOf(ref))}</span>
@@ -162,7 +181,8 @@ export function GridView() {
           follow
         </label>
         <span className="hint keys">
-          click a cell to trigger that track · click ▶ to trigger the whole scene · double-click to edit · Esc stops everything
+          click a cell to trigger that track · click ▶ to trigger the whole scene · right-click or double-click to edit · Esc
+          stops everything
         </span>
       </div>
     </div>

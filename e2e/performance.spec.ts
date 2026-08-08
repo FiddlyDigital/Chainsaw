@@ -358,6 +358,53 @@ test('a hand-triggered cell stops the follow', async ({ page }) => {
   await expect(page.locator('.pill.live')).not.toContainText('drop')
 })
 
+test('a cell opens its editor without having to survive a reflow', async ({ page }) => {
+  // Wide enough that the transport is one pill short of wrapping: firing the
+  // clip adds `live`, the bar grows a row, and everything below it drops by
+  // that row — mid-gesture. A double-click's second click lands on whatever
+  // has moved into that spot, which is why there is a single-event way in.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('.')
+
+  const cell = page.locator('.grid tbody tr').first().locator('button.cell').first()
+  await cell.click({ button: 'right' })
+
+  await expect(page.locator('.editor-panel .editor-head')).toContainText('slot')
+  await expect(page.locator('.slot-fields')).toBeVisible()
+  // Opening a clip is not launching it.
+  await expect(page.locator('.pill.live')).toHaveCount(0)
+})
+
+test('and a chain cell opens the chain editor, not the slot one', async ({ page }) => {
+  await page.goto('.')
+
+  // Scene 2 track 1 is DRUMS_A, a chain.
+  await page.locator('.grid tbody tr').nth(1).locator('button.cell').first().click({ button: 'right' })
+
+  await expect(page.locator('.chain-editor')).toBeVisible()
+  await expect(page.locator('.pill.live')).toHaveCount(0)
+})
+
+test('the scratch pad is somewhere you can go back to, and you can see where you are', async ({ page }) => {
+  await page.goto('.')
+
+  // It starts on the scratch pad, and says so.
+  await expect(page.locator('.editor-panel .editor-head')).toContainText('scratch')
+  await expect(page.locator('.scratch-entry')).toHaveClass(/current/)
+
+  await page.locator('.project-panel .entry', { hasText: 'A1' }).first().click()
+  await expect(page.locator('.editor-panel .editor-head')).toContainText('slot')
+  await expect(page.locator('.scratch-entry')).not.toHaveClass(/current/)
+  // Which slot is open is visible in the list rather than only in the editor.
+  await expect(page.locator('.project-panel .entry', { hasText: 'A1' }).first()).toHaveClass(/current/)
+
+  // …and back, without having to work out that "close" is the way.
+  await page.locator('.scratch-entry').click()
+  await expect(page.locator('.editor-panel .editor-head')).toContainText('scratch')
+  await expect(page.locator('.scratch-entry')).toHaveClass(/current/)
+  await expect(page.locator('.project-panel .entry.current')).toHaveCount(1)
+})
+
 test('the grid follows the track count', async ({ page }) => {
   await page.goto('.')
   await expect(page.locator('.grid thead .track-head')).toHaveCount(8)

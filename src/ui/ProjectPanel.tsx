@@ -23,6 +23,10 @@ export function ProjectPanel() {
   const setEditing = useRuntime((state) => state.setEditing)
   const setEditingChain = useRuntime((state) => state.setEditingChain)
   const setEditingPrebake = useRuntime((state) => state.setEditingPrebake)
+  const editing = useRuntime((state) => state.editing)
+  const editingPrebake = useRuntime((state) => state.editingPrebake)
+  const scratch = useRuntime((state) => state.scratch)
+  const onScratch = editing === null && !editingPrebake
 
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
@@ -66,8 +70,30 @@ export function ProjectPanel() {
         aria-label="Search project"
       />
 
+      {/*
+       * The scratch pad, alongside the things it is an alternative to.
+       *
+       * It was reachable only by *closing* whatever slot was open, which is a
+       * way back rather than a place to go: nothing named it, nothing showed
+       * it as current, and having opened one slot you could only ever open
+       * another. Listing it here makes it the same kind of thing as a slot —
+       * something you select, and can see is selected.
+       */}
+      <button
+        className={`entry scratch-entry ${onScratch ? 'current' : ''}`}
+        onClick={() => setEditing(null)}
+        aria-current={onScratch}
+      >
+        <span className="entry-name">scratch</span>
+        <code className="entry-code">{scratch.trim() ? firstLine(scratch) : 'try an idea without saving it'}</code>
+      </button>
+
       {/* Project-wide code, so it sits above the things that use it. */}
-      <button className="entry prebake-entry" onClick={() => setEditingPrebake(true)}>
+      <button
+        className={`entry prebake-entry ${editingPrebake ? 'current' : ''}`}
+        onClick={() => setEditingPrebake(true)}
+        aria-current={editingPrebake}
+      >
         <span className="entry-name">prebake</span>
         <code className="entry-code">
           {project.prebake?.trim() ? firstLine(project.prebake) : 'custom functions for every slot'}
@@ -85,7 +111,11 @@ export function ProjectPanel() {
           const slot = project.slots[id]
           return (
             <li key={id}>
-              <button className="entry" onClick={() => setEditing(id)}>
+              <button
+                className={`entry ${editing === id ? 'current' : ''}`}
+                onClick={() => setEditing(id)}
+                aria-current={editing === id}
+              >
                 <span className="swatch" style={{ background: slot.color }} />
                 <span className="entry-name">{id}</span>
                 {slot.muted && <em>muted</em>}
