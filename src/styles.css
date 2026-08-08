@@ -175,8 +175,31 @@ code {
   flex-wrap: wrap;
 }
 
+/*
+ * The file actions, and the reason the bar can absorb a pill without growing.
+ *
+ * A wrapping flex line packs items until one does not fit and then breaks —
+ * it does not shrink to avoid the break. So a `live` pill appearing after a
+ * clip is fired used to tip the bar onto a second row, which pushed the whole
+ * grid down by the height of that row, mid-click. That is what made
+ * double-clicking a cell to edit it unreliable: the first click moved the cell
+ * out from under the second.
+ *
+ * A `flex-basis` smaller than the group's content keeps it on the line
+ * whatever else is there, and `flex-grow` gives the width straight back when
+ * nothing else wants it. A pill now costs this group some width rather than
+ * the page a row — and width, unlike height, moves nothing below.
+ */
 .transport-group.right {
   margin-left: auto;
+  flex: 1 1 300px;
+  justify-content: flex-end;
+  min-width: 0;
+  /* The same packs-then-breaks rule applies one level down: left wrapping,
+     this group answers a pill by growing a second row of its own, which is the
+     page moving again. Without it the group compresses instead, and what
+     compresses is the project name. */
+  flex-wrap: nowrap;
 }
 
 .transport .play {
@@ -233,8 +256,12 @@ code {
   font-size: 11px;
 }
 
+/* Shrinks first, and furthest: a project's name is the one thing on this bar
+   that is still legible at half its width. */
 .project-name {
   width: 130px;
+  flex: 0 1 auto;
+  min-width: 64px;
 }
 
 .source-link {
@@ -289,6 +316,20 @@ code {
 .hint {
   color: var(--faint);
   font-size: 11px;
+}
+
+/*
+ * The thing the editor is currently showing. Without it the panel is a list of
+ * places you can go with no indication of where you are — which is most of
+ * what made getting back to the scratch pad feel impossible.
+ */
+.entry.current {
+  border-left: 2px solid var(--accent);
+  background: rgba(246, 109, 155, 0.08);
+}
+
+.entry.current .entry-name {
+  color: var(--accent);
 }
 
 .inline-warning {
