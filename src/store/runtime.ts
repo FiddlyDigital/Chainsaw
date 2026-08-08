@@ -21,6 +21,20 @@ import { useProject } from './project'
  */
 export type Pane = 'project' | 'stage' | 'editor'
 
+/**
+ * Something the performer needs told, from anywhere in the app.
+ *
+ * `bad` stays until it is dismissed. An error that clears itself after three
+ * seconds is an error nobody read — and the one place rejected edits used to be
+ * reported, the project panel, is a pane that is not even on screen on a phone.
+ */
+export interface Notice {
+  message: string
+  tone: 'info' | 'bad'
+  /** Distinguishes two identical messages, so the second one still shows. */
+  id: number
+}
+
 export interface RuntimeStore {
   status: EngineStatus
   /** What each track is playing, by track (PRD §7.5). The grid is the song. */
@@ -79,6 +93,11 @@ export interface RuntimeStore {
   /** The output receiving clock, or null for none. */
   midiOutputId: string | null
 
+  /** The one thing on screen in every pane, whatever went wrong where. */
+  notice: Notice | null
+  notify: (message: string, tone?: Notice['tone']) => void
+  dismissNotice: () => void
+
   setPane: (pane: Pane) => void
   setEditing: (slot: string | null) => void
   setEditingPrebake: (open: boolean) => void
@@ -126,6 +145,26 @@ export function getEngine(): Engine {
   return engine
 }
 
+let lastNoticeId = 0
+const noticeId = () => (lastNoticeId += 1)
+
+/**
+ * Say why an engine call that nobody is awaiting failed.
+ *
+ * Most calls into the Engine are made for their effect and dropped —
+ * `setOverrides` from a scene trigger, `setScratchMode` from a fader. Left as
+ * bare floating promises, a failure in one is an unhandled rejection: the
+ * console gets it, the performer gets a grid that quietly stopped following
+ * what they pressed. The Engine already contains its own failures, so this is
+ * the belt to that pair of braces, and it is cheap enough to put on every one.
+ */
+function report(where: string): (error: unknown) => void {
+  return (error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    useRuntime.getState().notify(`${where} failed: ${message}`, 'bad')
+  }
+}
+
 const SCRATCH_TRACK = 0
 
 export const useRuntime = create<RuntimeStore>()((set, get) => ({
@@ -155,6 +194,12 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   scratchError: null,
   midiOutputs: [],
   midiOutputId: null,
+  notice: null,
+
+  notify(message, tone = 'info') {
+    set({ notice: { message, tone, id: noticeId() } })
+  },
+  dismissNotice: () => set({ notice: null }),
 
   setPane: (pane) => set({ pane }),
   // Opening something for editing brings its editor on screen. On a wide
@@ -167,21 +212,33 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   setScratch: (scratch) => set({ scratch }),
 
   setMasterVolume(volume) {
-    set({ masterVolume: volume })
-    getEngine().setMasterVolume(volume)
+    // A NaN here is not a quiet mix, it is a dead one: it reaches an AudioParam
+    // and every voice after it is silent until the page is reloaded. Refusing
+    // the value keeps the fader where it was, which is recoverable.
+    if (!Number.isFinite(volume)) return
+    const clamped = Math.max(0, Math.min(1, volume))
+    set({ masterVolume: clamped })
+    getEngine().setMasterVolume(clamped)
   },
 
   async play() {
     set({ tracksPlaying: true })
     const engineRef = getEngine()
-    await engineRef.setTracksPlaying(true)
-    // Play is the only transport control that also *chooses* something to
-    // play. With the grid as the whole song, starting the clock over silence
-    // and waiting to be told what to fire is a dead press; so pick up where the
-    // set left off, or start at the top. Something already playing is left
-    // exactly as it is — this must not restart a scene on resume from pause.
-    if (Object.keys(get().overrides).length === 0) get().triggerScene(get().resumeIndex())
-    await engineRef.play()
+    try {
+      await engineRef.setTracksPlaying(true)
+      // Play is the only transport control that also *chooses* something to
+      // play. With the grid as the whole song, starting the clock over silence
+      // and waiting to be told what to fire is a dead press; so pick up where the
+      // set left off, or start at the top. Something already playing is left
+      // exactly as it is — this must not restart a scene on resume from pause.
+      if (Object.keys(get().overrides).length === 0) get().triggerScene(get().resumeIndex())
+      await engineRef.play()
+    } catch (error) {
+      // The commonest cause is the audio context refusing to start, which
+      // leaves the button lit over silence unless the flag goes back.
+      set({ tracksPlaying: false })
+      report('play')(error)
+    }
   },
 
   /** The scene play should start: the one last triggered, else the first. */
@@ -208,6 +265,10 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   triggerScene(index) {
     const project = useProject.getState().project
+    // Indices arrive from the grid, from auto-advance and from the remembered
+    // scene of a project that has since been edited. A fractional or negative
+    // one finds nothing and would fire silence.
+    if (!Number.isInteger(index)) return
     const scene = project.grid.scenes[index]
     if (!scene) return
     const at = getEngine().boundaryFor(quantizeOf(project))
@@ -238,7 +299,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
     })
     // Not through `commit`: that would write the live state back into the
     // project we have just opened.
-    void getEngine().setOverrides({})
+    getEngine().setOverrides({}).catch(report('loading the project'))
   },
 
   setAutoAdvance(autoAdvance) {
@@ -260,6 +321,13 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   triggerCell(track, ref) {
     const project = useProject.getState().project
+    // A track outside the project's own bounds resolves to nothing and would
+    // sit in the overrides for ever, keeping the grid marked live over silence.
+    if (!isTrack(track, project)) return
+    if (!(ref in project.slots) && !(ref in project.chains)) {
+      useRuntime.getState().notify(`no slot or chain called "${ref}"`, 'bad')
+      return
+    }
     const at = getEngine().boundaryFor(quantizeOf(project))
     commit(set, { ...get().overrides, [track]: { ref, startCycle: at } }, null)
   },
@@ -277,13 +345,16 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   async evaluateScratch(code) {
     set({ scratch: code })
     const engineRef = getEngine()
-    await engineRef.unlockAudio()
     // Evaluating asks to hear the scratch pad, never to start the song. With
     // the transport stopped the clock still has to start — the pattern needs
     // something to play against — but the tracks stay out of it until the
     // transport is played deliberately.
     const startingClock = !get().status.started
     try {
+      // Inside the try: a browser that refuses to start audio rejects here,
+      // and that belongs in the editor's error line like any other reason the
+      // evaluation made no sound.
+      await engineRef.unlockAudio()
       if (startingClock) {
         set({ tracksPlaying: false })
         await engineRef.setTracksPlaying(false)
@@ -303,7 +374,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
 
   setScratchMode(scratchMode) {
     set({ scratchMode })
-    void getEngine().setScratchMode(scratchMode)
+    getEngine().setScratchMode(scratchMode).catch(report('the scratch mix'))
   },
 
   clearScratch() {
@@ -363,6 +434,11 @@ function quantizeOf(project: Project): Quantize {
   return project.meta.quantize ?? 'bar'
 }
 
+/** Whether a track number is one this project actually has. */
+function isTrack(track: number, project: Project): boolean {
+  return Number.isInteger(track) && track >= 1 && track <= project.meta.trackCount
+}
+
 function commit(
   set: (partial: Partial<RuntimeStore>) => void,
   overrides: Record<number, LiveOverride>,
@@ -372,7 +448,7 @@ function commit(
   // track stopped, everything stopped. There is no longer a scene playing, so
   // there is nothing to advance from.
   set(activeScene === null ? { overrides, activeScene, activeSceneIndex: null, sceneEndsAt: null } : { overrides, activeScene })
-  void getEngine().setOverrides(overrides)
+  getEngine().setOverrides(overrides).catch(report('the trigger'))
   const cells: Record<string, string> = {}
   for (const [track, override] of Object.entries(overrides)) cells[track] = override.ref
   useProject.getState().setLastSceneState(cells, activeScene ?? undefined)

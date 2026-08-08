@@ -80,6 +80,24 @@ function withPostgain(pattern: StrudelPattern, gain: number): StrudelPattern {
   }))
 }
 
+/**
+ * The volume to hold after being asked for `next`, given `current`.
+ *
+ * Clamping alone is not enough, because `Math.max(0, Math.min(1, NaN))` is NaN:
+ * it would reach every hap's postgain, and a NaN gain is silence that no later
+ * fader move undoes — the multiply keeps producing NaN. Keeping the last good
+ * value leaves something to drag back.
+ */
+export function nextVolume(current: number, next: number): number {
+  if (!Number.isFinite(next)) return current
+  return Math.max(0, Math.min(1, next))
+}
+
+/** An error's message, whatever kind of thing was thrown. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export interface EngineStatus {
   started: boolean
   /** Absolute cycle position of the transport. */
@@ -143,7 +161,13 @@ export class Engine {
         webaudioOutput(this.scaled(hap), deadline, duration, cps, t),
       getTime: () => getAudioContext().currentTime,
       onToggle: (started: boolean) => this.publish({ started }),
-      onError: (error: unknown) => console.error('[chainsaw scheduler]', error),
+      // Reported like a slot's own error rather than only logged. The console
+      // is not somewhere anyone is looking mid-set, and a scheduler that has
+      // started throwing is exactly what explains the silence.
+      onError: (error: unknown) => {
+        console.error('[chainsaw scheduler]', error)
+        this.publish({ errors: { ...this.status.errors, scheduler: messageOf(error) } })
+      },
     })
   }
 
@@ -171,12 +195,22 @@ export class Engine {
    */
   async unlockAudio(): Promise<void> {
     if (this.audioReady) return
-    await initAudio()
-    const { registerBuiltInSounds } = await import('./sounds')
-    registerBuiltInSounds()
-    await initPatternScope()
+    try {
+      await initAudio()
+      const { registerBuiltInSounds } = await import('./sounds')
+      registerBuiltInSounds()
+      await initPatternScope()
+    } catch (error) {
+      // Rethrown, because a caller that wanted to make a sound has to know it
+      // will not — but recorded first, so the reason is on screen rather than
+      // only in whatever caught it.
+      this.publish({ errors: { ...this.status.errors, audio: messageOf(error) } })
+      throw error
+    }
+    const errors = { ...this.status.errors }
+    delete errors.audio
     this.audioReady = true
-    this.publish({ audioReady: true })
+    this.publish({ audioReady: true, errors })
   }
 
   async setProject(project: Project): Promise<void> {
@@ -243,7 +277,7 @@ export class Engine {
 
   clearScratch(): void {
     this.scratch = null
-    void this.rebuild()
+    void this.rebuild() // contains its own failures
   }
 
   /**
@@ -260,7 +294,7 @@ export class Engine {
   }
 
   setMasterVolume(volume: number): void {
-    this.masterVolume = Math.max(0, Math.min(1, volume))
+    this.masterVolume = nextVolume(this.masterVolume, volume)
   }
 
   /** The boundary a trigger issued right now would land on. */
@@ -292,7 +326,9 @@ export class Engine {
     this.midi.stop()
     // A fresh start begins at cycle 0, so the queued history is meaningless.
     this.timeline = this.timeline.length ? [{ from: 0, pattern: this.timeline[this.timeline.length - 1].pattern }] : []
-    void this.scheduler.setPattern(pieces(this.timeline), false)
+    Promise.resolve(this.scheduler.setPattern(pieces(this.timeline), false)).catch((error: unknown) => {
+      this.publish({ errors: { ...this.status.errors, engine: messageOf(error) } })
+    })
     this.publish({ cycle: 0, bar: 0, pendingAt: null })
   }
 
@@ -310,6 +346,21 @@ export class Engine {
    * overwriting it.
    */
   private async rebuild(): Promise<void> {
+    try {
+      await this.resolve()
+    } catch (error) {
+      // A rebuild failing must not take the transport with it. The pattern the
+      // scheduler is already reading stays exactly as it is — which is the
+      // whole point of never replacing it in place — so the set carries on
+      // playing what it was playing, and the reason appears beside the slots'
+      // own errors. Reported here rather than thrown because most callers fire
+      // this and walk away; a rejection would have nowhere to go.
+      console.error('[chainsaw engine]', error)
+      this.publish({ errors: { ...this.status.errors, engine: messageOf(error) } })
+    }
+  }
+
+  private async resolve(): Promise<void> {
     if (!this.project) return
     const project = this.project
     const generation = (this.generation += 1)
@@ -373,11 +424,19 @@ export class Engine {
   private watch() {
     if (this.frame !== undefined) return
     const tick = () => {
-      const cycle = this.now()
-      const bar = this.project ? cycle / this.project.meta.cyclesPerBar : 0
-      const pendingAt = this.status.pendingAt !== null && cycle >= this.status.pendingAt ? null : this.status.pendingAt
-      if (cycle !== this.status.cycle || pendingAt !== this.status.pendingAt) {
-        this.publish({ cycle, bar, pendingAt })
+      // A throw anywhere in here — a subscriber's render, a scheduler that has
+      // lost its context — would end the loop, and with it the position
+      // readout, the pending marker and the scene follow. All of which read as
+      // "the transport stopped" while the audio carries on playing.
+      try {
+        const cycle = this.now()
+        const bar = this.project ? cycle / this.project.meta.cyclesPerBar : 0
+        const pendingAt = this.status.pendingAt !== null && cycle >= this.status.pendingAt ? null : this.status.pendingAt
+        if (cycle !== this.status.cycle || pendingAt !== this.status.pendingAt) {
+          this.publish({ cycle, bar, pendingAt })
+        }
+      } catch (error) {
+        console.error('[chainsaw transport]', error)
       }
       this.frame = requestAnimationFrame(tick)
     }

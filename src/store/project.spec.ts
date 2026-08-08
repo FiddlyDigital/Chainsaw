@@ -258,6 +258,26 @@ describe('the track mixer', () => {
     expect(project().tracks?.['1']).toEqual({ gain: 0.25 })
   })
 
+  it('refuses a level that is not a level', () => {
+    store().setTrack(1, { gain: 0.5 })
+    // NaN is the one that matters: it survives `Math.max`/`Math.min`, and
+    // multiplied into a hap's postgain it is silence that no later change
+    // undoes. The schema would catch it on the way to disk — this stops it
+    // reaching the audio in the first place.
+    for (const gain of [Number.NaN, Infinity, -0.5, 2]) {
+      expect(store().setTrack(1, { gain })).toBe(false)
+    }
+    expect(project().tracks?.['1']).toEqual({ gain: 0.5 })
+    expect(store().lastError).toMatch(/between 0 and 1/)
+  })
+
+  it('refuses a track the project does not have', () => {
+    expect(store().setTrack(0, { muted: true })).toBe(false)
+    expect(store().setTrack(99, { muted: true })).toBe(false)
+    expect(store().setTrack(1.5, { muted: true })).toBe(false)
+    expect(project().tracks).toBeUndefined()
+  })
+
   it('drops mixer state above a shrunken track count', () => {
     store().setTrack(6, { muted: true })
     expect(store().setMeta({ trackCount: 4 })).toBe(true)

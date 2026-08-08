@@ -8,6 +8,7 @@ import { useRuntime } from '../store/runtime'
 import { prebakeWarnings } from '../audio/compile'
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor'
 import { CommittedInput } from './CommittedInput'
+import { NumberField } from './NumberField'
 import { PatternKeys } from './PatternKeys'
 import { useCoarsePointer } from './viewport'
 
@@ -286,13 +287,7 @@ function SlotEditor({ slotId }: { slotId: string }) {
         </label>
         <label className="field">
           <span>length</span>
-          <input
-            type="number"
-            min={1}
-            max={256}
-            value={slot.length}
-            onChange={(event) => updateSlot(slotId, { length: Number(event.target.value) })}
-          />
+          <NumberField min={1} max={256} integer value={slot.length} onCommit={(length) => updateSlot(slotId, { length })} />
         </label>
         <label className="field">
           <span>steps</span>

@@ -310,6 +310,53 @@ code {
   white-space: pre-wrap;
 }
 
+/*
+ * What is left of a pane whose render threw. Deliberately plain: it is the one
+ * thing on screen that has to draw when something else could not.
+ */
+.crash {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius);
+  background: rgba(252, 129, 129, 0.06);
+  overflow: auto;
+}
+
+.crash.compact {
+  padding: 10px;
+}
+
+.crash h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bad);
+}
+
+.crash-message {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--bad);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.crash .hint {
+  margin: 0;
+  max-width: 46ch;
+}
+
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* ── layout ────────────────────────────────────────────────── */
 
 .body {
@@ -777,6 +824,18 @@ button.mini.mix.soloed {
   padding: 5px 12px;
   font-size: 11px;
   color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+}
+
+/* Failures do not fade out on their own, so they are also the ones that have
+   to be legible across a room. */
+.notice.bad {
+  border-color: var(--bad);
+  background: rgba(252, 129, 129, 0.12);
+  color: var(--bad);
 }
 
 /* ── pattern keys (touch only) ─────────────────────────────── */
