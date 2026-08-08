@@ -28,10 +28,53 @@ export function useEngineSync(): void {
   }, [])
 }
 
+/**
+ * Everything that can go wrong away from a button press, said out loud.
+ *
+ * Three things used to fail in silence: a mutation the store rejected, which
+ * was reported only inside the project panel — a pane that is not on screen at
+ * all on a phone; a promise nobody awaited; and an error thrown outside React's
+ * tree, where an error boundary cannot reach. None of them are things the
+ * performer can be expected to deduce from the music stopping.
+ */
+export function useFailureReports(): void {
+  useEffect(() => {
+    const { notify } = useRuntime.getState()
+
+    let lastReported = useProject.getState().lastError
+    const unsubscribe = useProject.subscribe((state) => {
+      if (state.lastError === lastReported) return
+      lastReported = state.lastError
+      if (state.lastError) notify(state.lastError, 'bad')
+    })
+
+    const onError = (event: ErrorEvent) => notify(event.message || 'something went wrong', 'bad')
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason
+      notify(reason instanceof Error ? reason.message : String(reason), 'bad')
+    }
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
+}
+
 /** Keep a recent copy in localStorage. Never blocks, never throws. */
 export function useAutosave(): void {
   useEffect(() => {
-    const flush = debounce((project: Parameters<typeof writeAutosave>[0]) => writeAutosave(project), 1000)
+    // Storage full, or turned off. Said once and not again: it fails on every
+    // keystroke after the first, and the file on disk is still the truth.
+    let warned = false
+    const save = (project: Parameters<typeof writeAutosave>[0]) => {
+      if (writeAutosave(project) || warned) return
+      warned = true
+      useRuntime.getState().notify('could not autosave — save to a file to be safe', 'bad')
+    }
+    const flush = debounce(save, 1000)
     let last = useProject.getState().project
     const unsubscribe = useProject.subscribe((state) => {
       if (state.project === last) return
@@ -70,7 +113,14 @@ export function useSceneFollow(): void {
       useRuntime.subscribe((state) => {
         if (!state.autoAdvance || !state.status.started) return
         if (state.sceneEndsAt === null) return
-        if (state.status.cycle >= state.sceneEndsAt - FOLLOW_LEAD_CYCLES) state.advanceScene()
+        // Inside a store subscriber: a throw here would propagate back into
+        // whichever `set` published the frame, and the transport is what
+        // publishes those.
+        try {
+          if (state.status.cycle >= state.sceneEndsAt - FOLLOW_LEAD_CYCLES) state.advanceScene()
+        } catch (error) {
+          console.error('[chainsaw follow]', error)
+        }
       }),
     [],
   )

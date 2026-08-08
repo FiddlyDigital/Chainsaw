@@ -179,6 +179,12 @@ export const useProject = create<ProjectStore>()((set, get) => ({
   },
 
   setTrack(track, patch) {
+    if (!Number.isInteger(track) || track < 1 || track > get().project.meta.trackCount) {
+      return fail(set, `track ${track} is outside 1-${get().project.meta.trackCount}`)
+    }
+    if (patch.gain !== undefined && !(Number.isFinite(patch.gain) && patch.gain >= 0 && patch.gain <= 1)) {
+      return fail(set, `a track level of ${patch.gain} is not between 0 and 1`)
+    }
     return get().apply((draft) => {
       const key = String(track)
       const next: TrackSettings = { ...draft.tracks?.[key], ...patch }

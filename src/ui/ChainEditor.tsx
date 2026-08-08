@@ -3,6 +3,7 @@ import { slotCycles } from '../audio/timing'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
 import { CommittedInput } from './CommittedInput'
+import { NumberField } from './NumberField'
 
 /**
  * Chain editor (PRD §8.4): a chain's steps as a table, with LSDJ-style inline
@@ -46,12 +47,12 @@ export function ChainEditor() {
         </h2>
         <label className="field">
           <span>track</span>
-          <input
-            type="number"
+          <NumberField
             min={1}
             max={project.meta.trackCount}
+            integer
             value={chain.track}
-            onChange={(event) => updateChain(chainId, { track: Number(event.target.value) })}
+            onCommit={(track) => updateChain(chainId, { track })}
           />
         </label>
         <span className="hint">{total} cycles total</span>
@@ -114,15 +115,14 @@ export function ChainEditor() {
                     />
                   </td>
                   <td>
-                    <input
-                      type="number"
+                    <NumberField
                       className="tiny"
                       step={0.05}
                       min={-1}
                       max={1}
                       value={step.gainOffset}
-                      onChange={(event) => updateChainStep(chainId, index, { gainOffset: Number(event.target.value) })}
-                      aria-label={`Gain offset for step ${index}`}
+                      onCommit={(gainOffset) => updateChainStep(chainId, index, { gainOffset })}
+                      ariaLabel={`Gain offset for step ${index}`}
                     />
                   </td>
                   <td className="num">{slot ? (slotCycles(slot) * step.repeat).toFixed(2) : '—'}</td>
@@ -191,15 +191,7 @@ function Stepper({
       <button className="mini" onClick={() => onChange(clamp(value - 1))} aria-label={`${label} down`}>
         −
       </button>
-      <input
-        type="number"
-        className="tiny"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(clamp(Number(event.target.value)))}
-        aria-label={label}
-      />
+      <NumberField className="tiny" min={min} max={max} integer value={value} onCommit={onChange} ariaLabel={label} />
       <button className="mini" onClick={() => onChange(clamp(value + 1))} aria-label={`${label} up`}>
         +
       </button>

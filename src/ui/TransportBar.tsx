@@ -3,6 +3,7 @@ import { midiSupported } from '../audio/midiAccess'
 import { QUANTIZE_OPTIONS, type Quantize } from '../model/types'
 import { SOURCE_URL, LICENSE } from '../source'
 import { CommittedInput } from './CommittedInput'
+import { NumberField } from './NumberField'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
 
@@ -121,37 +122,28 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
       <div className={`transport-more ${showMore ? 'open' : ''}`}>
         <label className="field">
           <span>bpm</span>
-          <input
-            type="number"
-            min={20}
-            max={400}
-            step={1}
-            value={project.meta.bpm}
-            onChange={(event) => setMeta({ bpm: Number(event.target.value) })}
-          />
+          <NumberField min={20} max={400} step={1} value={project.meta.bpm} onCommit={(bpm) => setMeta({ bpm })} />
         </label>
 
         <label className="field">
           <span>cyc/bar</span>
-          <input
-            type="number"
+          <NumberField
             min={0.25}
             max={16}
             step={0.25}
             value={project.meta.cyclesPerBar}
-            onChange={(event) => setMeta({ cyclesPerBar: Number(event.target.value) })}
+            onCommit={(cyclesPerBar) => setMeta({ cyclesPerBar })}
           />
         </label>
 
         <label className="field">
           <span>tracks</span>
-          <input
-            type="number"
+          <NumberField
             min={1}
             max={32}
+            integer
             value={project.meta.trackCount}
-            onChange={(event) => {
-              const next = Number(event.target.value)
+            onCommit={(next) => {
               if (next < project.meta.trackCount && !confirmTruncate(next)) return
               setMeta({ trackCount: next })
             }}

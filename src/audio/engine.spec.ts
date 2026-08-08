@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anySoloed, audible, prune, trackAudible } from './engine'
+import { anySoloed, audible, nextVolume, prune, trackAudible } from './engine'
 
 /**
  * The mixer. Getting solo wrong silences a set on stage, so the rules are
@@ -139,5 +139,30 @@ describe('prune', () => {
   it('never empties the list', () => {
     expect(prune([piece(0)], 100).map((p) => p.from)).toEqual([0])
     expect(prune([], 100)).toEqual([])
+  })
+})
+
+/**
+ * The master fader. Every value here arrives from an `<input type="range">`,
+ * which cannot produce most of them — but `setMasterVolume` is also the store's
+ * public API, and the failure mode is not a quiet mix, it is a dead one.
+ */
+describe('nextVolume', () => {
+  it('takes a value in range', () => {
+    expect(nextVolume(0.8, 0.3)).toBe(0.3)
+    expect(nextVolume(0.8, 0)).toBe(0)
+    expect(nextVolume(0.8, 1)).toBe(1)
+  })
+
+  it('clamps a value outside it', () => {
+    expect(nextVolume(0.8, -1)).toBe(0)
+    expect(nextVolume(0.8, 5)).toBe(1)
+  })
+
+  it('keeps the last good value rather than passing NaN through', () => {
+    // `Math.max(0, Math.min(1, NaN))` is NaN, and a NaN postgain multiplies out
+    // to NaN for ever after: silence with no way back short of a reload.
+    expect(nextVolume(0.8, Number.NaN)).toBe(0.8)
+    expect(nextVolume(0.8, Number('x'))).toBe(0.8)
   })
 })
