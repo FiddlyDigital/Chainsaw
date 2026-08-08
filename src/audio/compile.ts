@@ -14,6 +14,7 @@ import { evalScope, evaluate } from '@strudel/core'
 import * as core from '@strudel/core'
 import * as mini from '@strudel/mini'
 import * as tonal from '@strudel/tonal'
+import * as webaudio from '@strudel/webaudio'
 import { transpiler } from '@strudel/transpiler'
 import type { Project } from '../model/types'
 import { noteToMidi } from './note'
@@ -32,9 +33,20 @@ export class PatternError extends Error {
 
 let scopeReady: Promise<void> | undefined
 
-/** Load Strudel's vocabulary into the evaluation scope. Idempotent. */
+/**
+ * Load Strudel's vocabulary into the evaluation scope. Idempotent.
+ *
+ * `webaudio` is in here for the same reason as the rest: without it a whole
+ * shelf of the standard vocabulary is simply missing — `setGainCurve`,
+ * `setDefault`, `samples` — and a pattern using one fails with nothing more
+ * helpful than "not defined". It is already in the bundle, since the engine
+ * and the built-in kit both import from it, and putting names in scope fetches
+ * nothing: the kit stays synthesised and offline stays offline. What it does
+ * is stop the scope being a subset of the language everything else is written
+ * in.
+ */
 export function initPatternScope(): Promise<void> {
-  scopeReady ??= evalScope(core, mini, tonal).then(() => undefined)
+  scopeReady ??= evalScope(core, mini, tonal, webaudio).then(() => undefined)
   return scopeReady as Promise<void>
 }
 
@@ -79,7 +91,13 @@ export async function runPrebake(code: string): Promise<void> {
   if (!trimmed) return
   await initPatternScope()
   try {
-    await evaluate(trimmed, transpiler)
+    // The transpiler insists the last top-level statement be an *expression*,
+    // because for a pattern it turns that statement into the return value. A
+    // prebake has no reason to end in one — a function declaration is the
+    // obvious way to finish — and gets `unexpected ast format without body
+    // expression` for its trouble. A trailing literal satisfies it, costs
+    // nothing, and leaves every line number above it alone.
+    await evaluate(`${trimmed}\n;0`, transpiler)
   } catch (error) {
     throw new PatternError('prebake', error)
   }

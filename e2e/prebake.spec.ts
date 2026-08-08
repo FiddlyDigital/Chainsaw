@@ -108,6 +108,37 @@ test('warns about a name in double quotes, which would silently register nothing
   await expect(page.locator('.inline-warning')).toHaveCount(0)
 })
 
+test('a prebake may end in a declaration rather than an expression', async ({ page }) => {
+  await page.goto('.')
+  await openPrebake(page)
+
+  // The transpiler turns the last top-level statement into a pattern's return
+  // value, so it insists that statement be an expression. Nothing about a page
+  // of definitions ends in one, and the failure — "unexpected ast format
+  // without body expression" — names neither the line nor the reason.
+  await setPrebake(page, ["register('halved', (pat) => pat.slow(2))", 'function unused() { return 1 }'].join('\n'))
+
+  await expect(page.locator('.editor-panel .inline-error')).toHaveCount(0)
+})
+
+test('the webaudio vocabulary is in scope, not just core, mini and tonal', async ({ page }) => {
+  await page.goto('.')
+  await openPrebake(page)
+
+  // Where a real prebake stops dead if the scope is short: these three live in
+  // `@strudel/webaudio`, and a file that calls `setGainCurve` on line 21 loses
+  // the thirteen hundred lines below it to one "not defined".
+  await setPrebake(
+    page,
+    [
+      "const absent = ['setGainCurve', 'setDefault', 'samples'].filter((name) => typeof globalThis[name] !== 'function')",
+      "if (absent.length) throw new Error('not in scope: ' + absent.join(', '))",
+    ].join('\n'),
+  )
+
+  await expect(page.locator('.editor-panel .inline-error')).toHaveCount(0)
+})
+
 test('the prebake is saved with the project', async ({ page }) => {
   await page.goto('.')
   await openPrebake(page)
