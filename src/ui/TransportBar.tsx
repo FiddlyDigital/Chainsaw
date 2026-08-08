@@ -37,6 +37,7 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
   const status = useRuntime((state) => state.status)
   const masterVolume = useRuntime((state) => state.masterVolume)
   const setMasterVolume = useRuntime((state) => state.setMasterVolume)
+  const tracksPlaying = useRuntime((state) => state.tracksPlaying)
   const play = useRuntime((state) => state.play)
   const pause = useRuntime((state) => state.pause)
   const stop = useRuntime((state) => state.stop)
@@ -54,17 +55,23 @@ export function TransportBar({ onSave, onSaveAs, onOpen, onNew }: TransportBarPr
   const bar = Math.floor(status.bar)
   const beatInBar = status.bar - bar
   const live = Object.keys(overrides).length > 0
+  const playing = status.started && tracksPlaying
 
   return (
     <header className="transport">
       <div className="transport-group">
+        {/*
+         * Reflects the song, not the clock. Evaluating a scratch pattern runs
+         * the clock without the song, and showing that as "playing" would say
+         * the arrangement is running when it is silent.
+         */}
         <button
-          className={`play ${status.started ? 'on' : ''}`}
-          onClick={() => (status.started ? pause() : void play())}
-          aria-label={status.started ? 'Pause' : 'Play'}
-          title={status.started ? 'Pause (space)' : 'Play (space)'}
+          className={`play ${playing ? 'on' : ''}`}
+          onClick={() => (playing ? pause() : void play())}
+          aria-label={playing ? 'Pause' : 'Play'}
+          title={playing ? 'Pause (space)' : 'Play (space)'}
         >
-          {status.started ? '❚❚' : '▶'}
+          {playing ? '❚❚' : '▶'}
         </button>
         <button onClick={stop} aria-label="Stop" title="Stop (Ctrl+.)">
           ■

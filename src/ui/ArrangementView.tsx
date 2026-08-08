@@ -66,7 +66,9 @@ export function ArrangementView() {
   const lastError = useProject((state) => state.lastError)
 
   const bar = useRuntime((state) => state.status.bar)
-  const started = useRuntime((state) => state.status.started)
+  // The song, not the clock: a playhead sweeping an arrangement that is not
+  // sounding — because only the scratch pad is — says the wrong thing.
+  const started = useRuntime((state) => state.status.started && state.tracksPlaying)
   const overrides = useRuntime((state) => state.overrides)
   const setEditingChain = useRuntime((state) => state.setEditingChain)
 

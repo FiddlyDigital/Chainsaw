@@ -143,6 +143,17 @@ of the arrangement, the scenes, and any live overrides, all against the same
 transport. So you can write an idea while a set is running and hear it in
 context without touching the document.
 
+**Evaluating never starts the song.** With the transport stopped, evaluating
+starts the clock — the pattern needs something to run against — and plays the
+scratch pad alone; the arrangement and any scenes stay out until you press
+play. So the transport's button, and the arrangement's playhead, follow _the
+song_ rather than the clock: a sweeping playhead over an arrangement that is
+not sounding says the wrong thing. Pressing play brings the song in on the next
+boundary, underneath whatever the scratch pad is already doing.
+
+Pause and stop are still the transport, and take everything with them. To
+silence the scratch pad on its own, use `mute` or `hush` below.
+
 Like everything else in Chainsaw it is boundary-quantized: evaluating queues
 the pattern for the next bar or cycle per the transport's `quantize` setting,
 so it drops in on the beat rather than the instant you finished typing.
