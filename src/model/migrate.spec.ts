@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProject } from './defaults'
 import { migrate } from './migrate'
 import { validateProject } from './validate'
@@ -11,10 +11,19 @@ import { validateProject } from './validate'
  * is the difference between someone's saved set opening and not.
  */
 
-/** A project as an older, arrangement-carrying version would have written it. */
-function legacy() {
+/**
+ * The same project as an older, arrangement-carrying version would have
+ * written it.
+ *
+ * Takes the base rather than making its own, so a test can compare what came
+ * out of the migration against the very document that went in. Two
+ * `demoProject()` calls read the clock twice, and `created` is stamped from
+ * that clock: a millisecond boundary falling between them is enough to fail a
+ * deep equality that has nothing to do with migrating anything.
+ */
+function withArrangement<T extends object>(base: T) {
   return {
-    ...demoProject(),
+    ...base,
     arrangement: {
       tracks: {
         '1': [
@@ -26,6 +35,19 @@ function legacy() {
     },
   }
 }
+
+/** A project as an older version would have written it. */
+const legacy = () => withArrangement(demoProject())
+
+/*
+ * Every test here compares one document against another, and a project stamps
+ * `created` and `modified` from the clock the moment it is made. Freezing it
+ * takes the millisecond out of the comparison — the one thing these tests are
+ * certainly not about, and the one that failed a merge. Only `Date` is faked;
+ * the timers are left alone because nothing here waits for one.
+ */
+beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }))
+afterEach(() => vi.useRealTimers())
 
 describe('migrate', () => {
   it('lets an older project open, where the raw document would be refused', () => {
@@ -44,8 +66,8 @@ describe('migrate', () => {
   })
 
   it('keeps everything the current format still has', () => {
-    const migrated = migrate(legacy()).document as Record<string, unknown>
     const expected = demoProject()
+    const migrated = migrate(withArrangement(expected)).document as Record<string, unknown>
     expect(migrated).toEqual(expected)
     // Chains and slots survive; it is only the placements that are gone, so
     // nothing has to be rebuilt to get the sounds back.

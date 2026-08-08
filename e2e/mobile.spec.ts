@@ -66,7 +66,13 @@ test('a sheet goes away three ways: the dock, the handle and the grid behind it'
   // and the fastest way back to the clips.
   await dockButton(page, 'editor').tap()
   await expect(page.locator('.editor-panel')).toBeVisible()
-  await page.locator('.scrim').tap()
+  // Aimed near the top, where the grid is actually showing. The scrim spans
+  // the whole body deliberately — that is what swallows a stray tap while the
+  // sheet is still travelling — but the sheet then sits on top of most of it
+  // and takes its own taps. So the centre, where a tap lands by default, is a
+  // point no thumb can reach either, and aiming there was a race: it only
+  // worked if the tap beat the sheet to the middle of the screen.
+  await page.locator('.scrim').tap({ position: { x: 40, y: 20 } })
   await expect(page.locator('.editor-panel')).toBeHidden()
 })
 
