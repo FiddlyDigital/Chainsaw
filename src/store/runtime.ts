@@ -57,6 +57,14 @@ export interface RuntimeStore {
   pane: Pane
   /** Slot currently open in the editor, or null for the scratch pad. */
   editing: string | null
+  /**
+   * Whether the editor is showing the project's prebake instead.
+   *
+   * A second flag rather than a tagged union on `editing`, which is a slot id
+   * in a dozen call sites. The two are kept mutually exclusive by their
+   * setters, so only one thing is ever open.
+   */
+  editingPrebake: boolean
   /** Chain currently open in the chain editor. */
   editingChain: string | null
   scratch: string
@@ -73,6 +81,7 @@ export interface RuntimeStore {
 
   setPane: (pane: Pane) => void
   setEditing: (slot: string | null) => void
+  setEditingPrebake: (open: boolean) => void
   setEditingChain: (chain: string | null) => void
   setScratch: (code: string) => void
   setMasterVolume: (volume: number) => void
@@ -137,6 +146,7 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   tracksPlaying: false,
   pane: 'stage',
   editing: null,
+  editingPrebake: false,
   editingChain: null,
   scratch: 's("bd*4, hh*8").gain(0.8)',
   scratchMode: 'stack',
@@ -150,7 +160,9 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   // Opening something for editing brings its editor on screen. On a wide
   // layout the pane is inert and this changes nothing; on a narrow one it is
   // the difference between tapping a slot and appearing to do nothing.
-  setEditing: (editing) => set(editing === null ? { editing } : { editing, pane: 'editor' }),
+  setEditing: (editing) => set(editing === null ? { editing } : { editing, editingPrebake: false, pane: 'editor' }),
+  setEditingPrebake: (editingPrebake) =>
+    set(editingPrebake ? { editingPrebake, editing: null, pane: 'editor' } : { editingPrebake }),
   setEditingChain: (editingChain) => set(editingChain === null ? { editingChain } : { editingChain, pane: 'stage' }),
   setScratch: (scratch) => set({ scratch }),
 

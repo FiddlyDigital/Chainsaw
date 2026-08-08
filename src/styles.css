@@ -291,6 +291,15 @@ code {
   font-size: 11px;
 }
 
+.inline-warning {
+  margin: 6px 8px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--accent-2);
+  background: rgba(246, 173, 85, 0.08);
+  color: var(--accent-2);
+  font-size: 11px;
+}
+
 .inline-error {
   margin: 6px 8px;
   padding: 5px 8px;
@@ -338,6 +347,12 @@ code {
 .search {
   width: 100%;
   margin-bottom: 8px;
+}
+
+.prebake-entry {
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
 }
 
 .panel-section h3 {

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { emptyProject, makeSlot } from '../model/defaults'
 import type { Project } from '../model/types'
-import { PatternError, clearPatternCache, compile, compileSlot, initPatternScope } from './compile'
+import { PatternError, clearPatternCache, compile, compileSlot, initPatternScope, prebakeWarnings } from './compile'
 
 function values(pattern: any, from = 0, to = 1) {
   return pattern.queryArc(from, to).map((hap: any) => hap.value)
@@ -108,5 +108,39 @@ describe('compileSlot', () => {
     const project = fixture()
     delete project.instruments.bass
     expect(values(await compileSlot(project, ref('played')))).toEqual([{ note: 'c3' }, { note: 'e3' }])
+  })
+})
+
+/**
+ * The double-quote trap.
+ *
+ * Strudel's transpiler rewrites every double-quoted string into a
+ * mini-notation pattern, which is exactly what you want for `s("bd*4")` and
+ * exactly what you do not want for a function's name. `register("verb", …)`
+ * throws nothing and registers nothing; the only symptom is a slot much later
+ * saying `verb is not a function`.
+ */
+describe('prebakeWarnings', () => {
+  it('catches a register name in double quotes', () => {
+    expect(prebakeWarnings(`register("verb", (x, pat) => pat.room(x))`)).toHaveLength(1)
+    expect(prebakeWarnings(`register("verb", (x, pat) => pat.room(x))`)[0]).toMatch(/single quotes/)
+  })
+
+  it('is quiet about the single-quoted form, which works', () => {
+    expect(prebakeWarnings(`register('verb', (x, pat) => pat.room(x))`)).toEqual([])
+  })
+
+  it('allows for whitespace the way people actually write it', () => {
+    expect(prebakeWarnings('register (\n  "verb",\n  (x, pat) => pat\n)')).toHaveLength(1)
+  })
+
+  it('says nothing about ordinary prebake code', () => {
+    expect(prebakeWarnings('Pattern.prototype.wide = function () { return this.room(0.5) }')).toEqual([])
+    expect(prebakeWarnings('globalThis.zap = () => s("white").decay(0.1)')).toEqual([])
+    expect(prebakeWarnings('')).toEqual([])
+  })
+
+  it('does not fire on a word that merely ends in register', () => {
+    expect(prebakeWarnings('unregister("verb")')).toEqual([])
   })
 })

@@ -62,14 +62,22 @@ export function emptyProject(name = 'untitled'): Project {
 
 /**
  * The project the app opens on. It is deliberately small but exercises every
- * v1 feature: two instruments, slots of two different lengths, chains with
- * repeats and a transposed step, and four scenes that between them reference
- * every slot and every chain — nothing in here is unreachable from the grid.
+ * v1 feature: a prebake defining a helper one slot then calls, two instruments,
+ * slots of two different lengths, chains with repeats and a transposed step,
+ * and four scenes that between them reference every slot and every chain —
+ * nothing in here is unreachable from the grid.
  */
 export function demoProject(): Project {
   const base = emptyProject('first light')
   return {
     ...base,
+    // Single quotes for the name, double quotes for mini-notation: the
+    // transpiler rewrites every double-quoted string into a pattern, so a name
+    // in double quotes registers under a pattern and quietly does nothing.
+    prebake: [
+      '// Definitions every slot can use. Runs once, before anything compiles.',
+      "register('wide', (amount, pat) => pat.room(amount).roomsize(3))",
+    ].join('\n'),
     instruments: {
       bass: { base: 'sound("sawtooth").lpf(500).lpq(8).decay(0.2).sustain(0.1)', notes: 'plucky saw bass' },
       keys: { base: 'sound("triangle").room(0.4).gain(0.5)' },
@@ -86,7 +94,8 @@ export function demoProject(): Project {
         length: 32,
         color: PALETTE[5],
       }),
-      D1: makeSlot({ instrument: 'keys', code: 'note("<[c4,eb4,g4] [ab3,c4,eb4]>")', color: PALETTE[6] }),
+      // Uses `wide`, defined in the prebake above.
+      D1: makeSlot({ instrument: 'keys', code: 'note("<[c4,eb4,g4] [ab3,c4,eb4]>").wide(0.5)', color: PALETTE[6] }),
     },
     chains: {
       DRUMS_A: {

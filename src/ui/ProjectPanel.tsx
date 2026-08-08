@@ -22,6 +22,7 @@ export function ProjectPanel() {
 
   const setEditing = useRuntime((state) => state.setEditing)
   const setEditingChain = useRuntime((state) => state.setEditingChain)
+  const setEditingPrebake = useRuntime((state) => state.setEditingPrebake)
 
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
@@ -64,6 +65,14 @@ export function ProjectPanel() {
         onChange={(event) => setQuery(event.target.value)}
         aria-label="Search project"
       />
+
+      {/* Project-wide code, so it sits above the things that use it. */}
+      <button className="entry prebake-entry" onClick={() => setEditingPrebake(true)}>
+        <span className="entry-name">prebake</span>
+        <code className="entry-code">
+          {project.prebake?.trim() ? firstLine(project.prebake) : 'custom functions for every slot'}
+        </code>
+      </button>
 
       <Section
         title="slots"
@@ -141,6 +150,16 @@ export function ProjectPanel() {
         </p>
       )}
     </aside>
+  )
+}
+
+/** The first line with anything on it, as a one-glance summary. */
+function firstLine(code: string): string {
+  return (
+    code
+      .split('\n')
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? ''
   )
 }
 

@@ -58,6 +58,54 @@ export function clearPatternCache(): void {
 }
 
 /**
+ * Run the project's prebake: definitions every slot can then use.
+ *
+ * Unlike a slot, this is evaluated for its **side effects** and its result is
+ * thrown away, so it does not have to end in a pattern. That is also the only
+ * way it can work: each slot is evaluated in its own scope, so a bare
+ * `const foo = …` here is invisible everywhere else. What survives is what
+ * Strudel and JavaScript keep globally — `register('name', …)`, a method on
+ * `Pattern.prototype`, an assignment to `globalThis`.
+ *
+ * It goes through the transpiler like everything else, so mini-notation still
+ * works inside a helper. That has one sharp edge worth knowing: the transpiler
+ * rewrites **every double-quoted string** into a mini-notation pattern, so a
+ * string that is meant to stay a string — a name, a preset key — has to be
+ * single-quoted. `register("verb", …)` registers under a pattern rather than a
+ * name and then silently does nothing.
+ */
+export async function runPrebake(code: string): Promise<void> {
+  const trimmed = code.trim()
+  if (!trimmed) return
+  await initPatternScope()
+  try {
+    await evaluate(trimmed, transpiler)
+  } catch (error) {
+    throw new PatternError('prebake', error)
+  }
+}
+
+/**
+ * Prebake code that will not work, and will not say so either.
+ *
+ * `register("verb", …)` is the one worth catching. The transpiler rewrites the
+ * double-quoted name into a mini-notation pattern, so the function registers
+ * under a pattern instead of a name: no error, no exception, no function — and
+ * nothing to search for when the slot that calls it says only that `verb` is
+ * not a function. Single quotes are the whole fix.
+ */
+export function prebakeWarnings(code: string): string[] {
+  const warnings: string[] = []
+  if (/\bregister\s*\(\s*"/.test(code)) {
+    warnings.push(
+      'register("…") names the function with a double-quoted string, which the transpiler turns into a pattern — ' +
+        "it will register nothing. Use single quotes: register('name', …)",
+    )
+  }
+  return warnings
+}
+
+/**
  * Evaluate one Strudel expression. Throws `PatternError` on bad code so the
  * caller can attribute the failure to a slot and keep the rest playing.
  */

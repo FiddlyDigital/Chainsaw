@@ -51,6 +51,9 @@ export interface ProjectStore {
   /** Drop every solo at once — the way out when several are lit. */
   clearTrackSolos: () => boolean
 
+  /** Replace the project's prebake. Empty string removes it from the document. */
+  setPrebake: (code: string) => boolean
+
   upsertInstrument: (id: string, instrument: Instrument) => boolean
   removeInstrument: (id: string) => boolean
 
@@ -204,6 +207,15 @@ export const useProject = create<ProjectStore>()((set, get) => ({
         if (Object.keys(settings).length === 0) delete draft.tracks![key]
       }
       if (draft.tracks && Object.keys(draft.tracks).length === 0) delete draft.tracks
+    })
+  },
+
+  setPrebake(code) {
+    return get().apply((draft) => {
+      // Absent rather than empty, so a project that does not use one carries no
+      // trace of it — the same rule the mixer follows.
+      if (code.trim()) draft.prebake = code
+      else delete draft.prebake
     })
   },
 

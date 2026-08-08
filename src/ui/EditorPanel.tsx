@@ -5,6 +5,7 @@ import { slotCycles } from '../audio/timing'
 import { referencesToSlot } from '../audio/timeline'
 import { useProject } from '../store/project'
 import { useRuntime } from '../store/runtime'
+import { prebakeWarnings } from '../audio/compile'
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor'
 import { CommittedInput } from './CommittedInput'
 import { PatternKeys } from './PatternKeys'
@@ -24,7 +25,70 @@ const AUTO_COMMIT_MS = 300
  */
 export function EditorPanel() {
   const editing = useRuntime((state) => state.editing)
+  const editingPrebake = useRuntime((state) => state.editingPrebake)
+  if (editingPrebake) return <PrebakeEditor />
   return editing ? <SlotEditor key={editing} slotId={editing} /> : <ScratchPad />
+}
+
+/**
+ * The project's prebake: definitions every slot can use.
+ *
+ * Committing it re-runs the definitions and recompiles every slot, so it is
+ * explicit — there is no auto-commit here, because a half-typed function
+ * definition would take every slot that calls it down with it.
+ */
+function PrebakeEditor() {
+  const prebake = useProject((state) => state.project.prebake ?? '')
+  const setPrebake = useProject((state) => state.setPrebake)
+  const setEditingPrebake = useRuntime((state) => state.setEditingPrebake)
+  const error = useRuntime((state) => state.status.errors.prebake)
+  const warnings = prebakeWarnings(prebake)
+
+  const coarse = useCoarsePointer()
+  const editor = useRef<CodeEditorHandle>(null)
+  const draft = useRef(prebake)
+
+  const commit = useCallback(
+    (code: string) => {
+      if (code !== (useProject.getState().project.prebake ?? '')) setPrebake(code)
+    },
+    [setPrebake],
+  )
+
+  return (
+    <section className="editor-panel">
+      <header className="editor-head">
+        <h2>prebake</h2>
+        <span className="hint keys">
+          runs once before everything else — use <code>register(&apos;name&apos;, …)</code>, <code>Pattern.prototype</code> or{' '}
+          <code>globalThis</code>, and single-quote anything that is a name rather than a pattern
+        </span>
+        <div className="spacer" />
+        <button onClick={() => commit(editor.current?.read() ?? draft.current)}>commit</button>
+        <button onClick={() => setEditingPrebake(false)}>close</button>
+      </header>
+
+      <CodeEditor
+        ref={editor}
+        value={prebake}
+        onChange={(code) => {
+          draft.current = code
+        }}
+        onEvaluate={commit}
+        ariaLabel="Prebake"
+        placeholder={"register('wide', (amount, pat) => pat.room(amount))"}
+      />
+      {error && <p className="inline-error">{error}</p>}
+      {warnings.map((warning) => (
+        <p className="inline-warning" key={warning}>
+          {warning}
+        </p>
+      ))}
+      {coarse && (
+        <PatternKeys editor={editor} onRun={() => commit(editor.current?.read() ?? draft.current)} runLabel="commit" />
+      )}
+    </section>
+  )
 }
 
 function ScratchPad() {

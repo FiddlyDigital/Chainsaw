@@ -56,6 +56,7 @@
         }
       }
     },
+    "prebake": { "type": "string", "maxLength": 100000 },
     "instruments": {
       "type": "object",
       "propertyNames": { "$ref": "#/definitions/id" },
