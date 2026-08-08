@@ -12,7 +12,18 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
 import { demoProject, isValidId, makeSlot } from '../model/defaults'
-import type { Chain, ChainStep, Instrument, Meta, Placement, Project, Scene, Slot, TrackSettings } from '../model/types'
+import {
+  TRACK_DEFAULTS,
+  type Chain,
+  type ChainStep,
+  type Instrument,
+  type Meta,
+  type Placement,
+  type Project,
+  type Scene,
+  type Slot,
+  type TrackSettings,
+} from '../model/types'
 import { formatErrors, validateProject } from '../model/validate'
 
 const UNDO_LIMIT = 100
@@ -185,11 +196,13 @@ export const useProject = create<ProjectStore>()((set, get) => ({
   setTrack(track, patch) {
     return get().apply((draft) => {
       const key = String(track)
-      const next = { ...draft.tracks?.[key], ...patch }
+      const next: TrackSettings = { ...draft.tracks?.[key], ...patch }
       // Keep the record sparse: a track back at its defaults leaves no trace in
       // the document, so the mixer costs nothing to a project that ignores it.
-      for (const [name, value] of Object.entries(next)) {
-        if (!value) delete next[name as keyof typeof next]
+      // Compared field by field rather than by truthiness — a fader at 0 is
+      // falsy and meaningful, and a fader at 1 is truthy and the default.
+      for (const name of Object.keys(next) as (keyof TrackSettings)[]) {
+        if (next[name] === TRACK_DEFAULTS[name]) delete next[name]
       }
       if (Object.keys(next).length === 0) {
         if (draft.tracks) delete draft.tracks[key]

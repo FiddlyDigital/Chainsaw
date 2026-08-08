@@ -499,8 +499,24 @@ code {
 
 .track-mix {
   display: inline-flex;
+  align-items: center;
   gap: 1px;
   vertical-align: middle;
+}
+
+.track-gain {
+  width: 44px;
+  height: 12px;
+  margin-right: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--dim);
+}
+
+.track-gain:hover,
+.track-gain:focus-visible {
+  accent-color: var(--accent);
 }
 
 .track-number {

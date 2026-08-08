@@ -7,7 +7,8 @@
 import { create } from 'zustand'
 import { Engine, type EngineStatus, type ScratchMode } from '../audio/engine'
 import type { MidiOutputPort } from '../audio/midi'
-import { midiOutput, midiOutputs, midiSupported, onMidiPortsChanged, requestMidiAccess } from '../audio/midiAccess'
+import { midiOutput, midiOutputs, midiPermissionGranted, onMidiPortsChanged, requestMidiAccess } from '../audio/midiAccess'
+import { readMidiOutputId, writeMidiOutputId } from '../persistence/midiPreference'
 import { sceneCycles, type LiveOverride } from '../audio/timeline'
 import type { Project, Quantize } from '../model/types'
 import { useProject } from './project'
@@ -92,6 +93,8 @@ export interface RuntimeStore {
 
   /** Prompt for MIDI access and populate the output list. Safe to call twice. */
   enableMidi: () => Promise<boolean>
+  /** Reconnect to last session's output, but only without prompting for it. */
+  restoreMidi: () => Promise<void>
   /** Point the clock at an output, or null to stop sending. */
   setMidiOutput: (id: string | null) => void
 }
@@ -238,26 +241,52 @@ export const useRuntime = create<RuntimeStore>()((set, get) => ({
   },
 
   async enableMidi() {
-    if (!midiSupported()) return false
     if (!(await requestMidiAccess())) return false
-    const refresh = () => {
-      const outputs = midiOutputs()
-      set({ midiOutputs: outputs })
-      // A device pulled out mid-set takes the clock with it rather than
-      // leaving the transport pointed at a port that no longer exists.
-      const chosen = get().midiOutputId
-      if (chosen && !outputs.some((output) => output.id === chosen)) get().setMidiOutput(null)
-    }
-    refresh()
-    onMidiPortsChanged(refresh)
+    watchMidiPorts(set, get)
     return true
+  },
+
+  async restoreMidi() {
+    const remembered = readMidiOutputId()
+    if (!remembered) return
+    // Only if the browser will hand over access without asking. Prompting for
+    // a permission on every boot, for someone who may never use MIDI, is worse
+    // than making them pick the port again.
+    if (!(await midiPermissionGranted())) return
+    if (!(await requestMidiAccess())) return
+    watchMidiPorts(set, get)
+    // The device may simply not be plugged in this time.
+    if (get().midiOutputs.some((output) => output.id === remembered)) get().setMidiOutput(remembered)
   },
 
   setMidiOutput(midiOutputId) {
     set({ midiOutputId })
+    writeMidiOutputId(midiOutputId)
     getEngine().midi.setPort(midiOutput(midiOutputId))
   },
 }))
+
+/**
+ * Publish the output list and keep it current as devices come and go.
+ *
+ * A device pulled out mid-set takes the clock with it rather than leaving the
+ * transport pointed at a port that no longer exists. The choice is left in
+ * storage either way, so plugging the same device back in restores it on the
+ * next reload.
+ */
+function watchMidiPorts(set: (partial: Partial<RuntimeStore>) => void, get: () => RuntimeStore): void {
+  const refresh = () => {
+    const outputs = midiOutputs()
+    set({ midiOutputs: outputs })
+    const chosen = get().midiOutputId
+    if (chosen && !outputs.some((output) => output.id === chosen)) {
+      set({ midiOutputId: null })
+      getEngine().midi.setPort(null)
+    }
+  }
+  refresh()
+  onMidiPortsChanged(refresh)
+}
 
 function quantizeOf(project: Project): Quantize {
   return project.meta.quantize ?? 'bar'

@@ -67,7 +67,7 @@ export function GridView() {
                       </button>
                     )}
                   </span>
-                  <TrackMix track={track} />
+                  <TrackMix track={track} fader />
                 </th>
               ))}
             </tr>

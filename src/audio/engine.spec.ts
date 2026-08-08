@@ -28,6 +28,13 @@ describe('trackAudible', () => {
     // `anySoloed` is what decides; a lone flag cannot mute the rest by itself.
     expect(trackAudible({ soloed: true }, false)).toBe(true)
   })
+
+  it('treats a fader all the way down as nothing to schedule', () => {
+    expect(trackAudible({ gain: 0 }, false)).toBe(false)
+    // …but only at zero. Quiet is still audible, and unity is the default.
+    expect(trackAudible({ gain: 0.01 }, false)).toBe(true)
+    expect(trackAudible({ gain: 1 }, false)).toBe(true)
+  })
 })
 
 describe('anySoloed', () => {

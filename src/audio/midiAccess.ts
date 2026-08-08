@@ -32,6 +32,26 @@ export async function requestMidiAccess(): Promise<boolean> {
   }
 }
 
+/**
+ * Whether MIDI access has already been granted, without asking for it.
+ *
+ * This is what makes reconnecting to last session's output on load safe:
+ * calling `requestMIDIAccess` outright would put a permission prompt in front
+ * of someone who has not asked for MIDI yet, on every boot. A browser that
+ * does not recognise the permission name answers false, so it waits to be
+ * asked properly rather than gambling on a prompt.
+ */
+export async function midiPermissionGranted(): Promise<boolean> {
+  if (access) return true
+  if (!midiSupported() || !navigator.permissions?.query) return false
+  try {
+    const status = await navigator.permissions.query({ name: 'midi' as PermissionName })
+    return status.state === 'granted'
+  } catch {
+    return false
+  }
+}
+
 export function midiOutputs(): MidiOutputPort[] {
   if (!access) return []
   return [...access.outputs.values()].map((output) => ({ id: output.id, name: output.name || output.id }))

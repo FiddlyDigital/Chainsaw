@@ -188,7 +188,19 @@ test('tracks can be muted and soloed, and it survives a save', async ({ page }) 
   await expect(head.nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
   await expect(head.nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
 
-  // The arrangement lists the same tracks and shows the same state.
+  // Each track has a fader too, independent of its flags.
+  await head.nth(1).getByLabel('Level for track 2').fill('0.4')
+
+  // It is document state, not runtime state, so it is in what gets persisted.
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('chainsaw.autosave.v1') ?? '{}').tracks)
+  await expect.poll(stored, { timeout: 5_000 }).toEqual({ '1': { muted: true }, '2': { gain: 0.4 }, '3': { soloed: true } })
+
+  // A fader back at unity leaves no trace at all.
+  await head.nth(1).getByLabel('Level for track 2').fill('1')
+  await expect.poll(stored, { timeout: 5_000 }).toEqual({ '1': { muted: true }, '3': { soloed: true } })
+
+  // The arrangement lists the same tracks and shows the same state. It has no
+  // room for faders, but mute and solo are worth the space in both.
   await page.locator('.tabs').getByRole('button', { name: 'arrangement' }).click()
   await expect(page.locator('.track-row').nth(0).getByRole('button', { name: 'Unmute track 1' })).toHaveClass(/muted/)
   await expect(page.locator('.track-row').nth(2).getByRole('button', { name: 'Unsolo track 3' })).toHaveClass(/soloed/)
@@ -197,13 +209,6 @@ test('tracks can be muted and soloed, and it survives a save', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
   const first = await cycle(page)
   await expect.poll(() => cycle(page), { timeout: 10_000 }).toBeGreaterThan(first + 1)
-
-  // It is document state, not runtime state, so it is in what gets persisted.
-  await expect
-    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('chainsaw.autosave.v1') ?? '{}').tracks), {
-      timeout: 5_000,
-    })
-    .toEqual({ '1': { muted: true }, '3': { soloed: true } })
 
   expect(problems).toEqual([])
 })

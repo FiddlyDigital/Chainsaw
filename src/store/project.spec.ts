@@ -232,6 +232,29 @@ describe('the track mixer', () => {
     expect(project().tracks).toBeUndefined()
   })
 
+  it('keeps a fader pulled all the way down', () => {
+    // 0 is falsy, and dropping it would silently restore the track to unity.
+    expect(store().setTrack(1, { gain: 0 })).toBe(true)
+    expect(project().tracks?.['1']).toEqual({ gain: 0 })
+    expect(validateProject(project()).ok).toBe(true)
+  })
+
+  it('drops a fader back at unity', () => {
+    // 1 is truthy, and keeping it would leave a no-op entry in every file.
+    store().setTrack(1, { gain: 0.5 })
+    expect(project().tracks?.['1']).toEqual({ gain: 0.5 })
+    store().setTrack(1, { gain: 1 })
+    expect(project().tracks).toBeUndefined()
+  })
+
+  it('carries a fader alongside the flags without either clobbering the other', () => {
+    store().setTrack(1, { gain: 0.25 })
+    store().setTrack(1, { muted: true })
+    expect(project().tracks?.['1']).toEqual({ gain: 0.25, muted: true })
+    store().setTrack(1, { muted: false })
+    expect(project().tracks?.['1']).toEqual({ gain: 0.25 })
+  })
+
   it('drops mixer state above a shrunken track count', () => {
     store().setTrack(6, { muted: true })
     expect(store().setMeta({ trackCount: 4 })).toBe(true)

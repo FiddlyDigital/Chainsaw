@@ -43,6 +43,11 @@ export default function App() {
     if (saved) load(saved)
   }, [load])
 
+  // …including the MIDI output, where the browser will reconnect silently.
+  useEffect(() => {
+    void useRuntime.getState().restoreMidi()
+  }, [])
+
   const doSave = useCallback(async () => {
     const project = useProject.getState().project
     try {

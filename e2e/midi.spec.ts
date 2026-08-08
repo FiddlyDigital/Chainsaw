@@ -16,11 +16,21 @@ const CONTINUE = 0xfb
 const STOP = 0xfc
 const SONG_POSITION = 0xf2
 
-/** Replace Web MIDI with a single fake output that records every send. */
-async function stubMidi(page: Page) {
-  await page.addInitScript(() => {
+/**
+ * Replace Web MIDI with a single fake output that records every send.
+ *
+ * `permission` is what `navigator.permissions.query` will report, which is
+ * what decides whether the app may reconnect to last session's output without
+ * putting a prompt in front of someone who never asked for MIDI. The number of
+ * times access was requested is recorded so a test can assert nothing was
+ * asked for at all.
+ */
+async function stubMidi(page: Page, permission: 'granted' | 'prompt' = 'granted') {
+  await page.addInitScript((state) => {
     const sent: number[][] = []
-    ;(window as unknown as { __midiSent: number[][] }).__midiSent = sent
+    const win = window as unknown as { __midiSent: number[][]; __midiRequests: number }
+    win.__midiSent = sent
+    win.__midiRequests = 0
     const output = {
       id: 'fake-out',
       name: 'Fake Output',
@@ -29,14 +39,26 @@ async function stubMidi(page: Page) {
     Object.defineProperty(navigator, 'requestMIDIAccess', {
       configurable: true,
       writable: true,
-      value: async () => ({
-        outputs: new Map([[output.id, output]]),
-        addEventListener() {},
-        removeEventListener() {},
-      }),
+      value: async () => {
+        win.__midiRequests += 1
+        // A test can pull the device out between loads.
+        const gone = sessionStorage.getItem('midi-device-gone') === '1'
+        return {
+          outputs: gone ? new Map() : new Map([[output.id, output]]),
+          addEventListener() {},
+          removeEventListener() {},
+        }
+      },
     })
-  })
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true,
+      writable: true,
+      value: { query: async ({ name }: { name: string }) => ({ state: name === 'midi' ? state : 'prompt' }) },
+    })
+  }, permission)
 }
+
+const requests = (page: Page) => page.evaluate(() => (window as unknown as { __midiRequests: number }).__midiRequests)
 
 const sent = (page: Page) => page.evaluate(() => (window as unknown as { __midiSent: number[][] }).__midiSent)
 const statuses = async (page: Page) => (await sent(page)).map((message) => message[0])
@@ -45,16 +67,25 @@ async function clearSent(page: Page) {
   await page.evaluate(() => void ((window as unknown as { __midiSent: number[][] }).__midiSent.length = 0))
 }
 
+const picker = (page: Page) => page.getByTitle('Send MIDI clock, start/stop and song position to this output')
+
 /** Pick the stubbed output from the transport's MIDI selector. */
 async function selectFakeOutput(page: Page) {
-  const picker = page.getByTitle('Send MIDI clock, start/stop and song position to this output')
-  await picker.selectOption('__enable__')
-  await expect(picker.locator('option', { hasText: 'Fake Output' })).toHaveCount(1)
-  await picker.selectOption({ label: 'Fake Output' })
+  const select = picker(page)
+  await select.selectOption('__enable__')
+  await expect(select.locator('option', { hasText: 'Fake Output' })).toHaveCount(1)
+  await select.selectOption({ label: 'Fake Output' })
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.clear())
+  // Once per test rather than once per navigation: the tests below reload the
+  // page to check what survived, and clearing on the way in would answer the
+  // question for them.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('e2e-started')) return
+    sessionStorage.setItem('e2e-started', '1')
+    window.localStorage.clear()
+  })
   await stubMidi(page)
 })
 
@@ -148,6 +179,48 @@ test('stopping from the top sends Start again, not Continue', async ({ page }) =
   await page.getByRole('button', { name: 'Play' }).click()
   await expect.poll(() => statuses(page), { timeout: 5_000 }).toContain(START)
   expect(await statuses(page)).not.toContain(CONTINUE)
+})
+
+test('reconnects to last session"s output after a reload', async ({ page }) => {
+  await page.goto('.')
+  await selectFakeOutput(page)
+
+  await page.reload()
+  // No picking this time: the output comes back on its own.
+  await expect(picker(page)).toHaveValue('fake-out')
+
+  await clearSent(page)
+  await page.getByRole('button', { name: 'Play' }).click()
+  await expect.poll(() => statuses(page), { timeout: 5_000 }).toContain(CLOCK)
+})
+
+test('asks for nothing on load when the permission has not been granted', async ({ page }) => {
+  await stubMidi(page, 'prompt')
+  await page.goto('.')
+  await selectFakeOutput(page)
+  await expect(picker(page)).toHaveValue('fake-out')
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
+
+  // Prompting on every boot, for someone who may never use MIDI, is worse than
+  // making them pick the port again — so it does not ask at all.
+  expect(await requests(page)).toBe(0)
+  await expect(picker(page)).toHaveValue('')
+})
+
+test('stays off when the remembered device is not plugged in', async ({ page }) => {
+  await page.goto('.')
+  await selectFakeOutput(page)
+
+  await page.evaluate(() => sessionStorage.setItem('midi-device-gone', '1'))
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
+
+  await expect(picker(page)).toHaveValue('')
+  await page.getByRole('button', { name: 'Play' }).click()
+  await page.waitForTimeout(500)
+  expect(await sent(page)).toEqual([])
 })
 
 test('turning the output back off stops the clock without stopping the audio', async ({ page }) => {
