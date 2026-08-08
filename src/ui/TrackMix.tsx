@@ -8,9 +8,8 @@ import { useProject } from '../store/project'
  * undoable like every other document change. The engine applies them at the
  * next boundary, so a mute lands on the beat rather than mid-bar.
  *
- * Rendered next to the track number in both places a track is listed — the
- * grid's column headings and the arrangement's row labels — because needing to
- * change pane to drop a track is exactly the wrong thing mid-set.
+ * Rendered next to the track number in the grid's column headings, which are
+ * the mixer surface.
  */
 export function TrackMix({ track, fader = false }: { track: number; fader?: boolean }) {
   const settings = useProject((state) => state.project.tracks?.[String(track)])
@@ -22,9 +21,6 @@ export function TrackMix({ track, fader = false }: { track: number; fader?: bool
 
   return (
     <span className="track-mix">
-      {/* Only where there is room for it: the grid's headings are the mixer
-          surface, the arrangement's row labels are 92px of a scrolling
-          timeline. Mute and solo are worth the space in both. */}
       {fader && (
         <input
           className="track-gain"

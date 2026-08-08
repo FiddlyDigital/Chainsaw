@@ -62,20 +62,14 @@ describe('mutations', () => {
     expect(validateProject(project()).ok).toBe(true)
   })
 
-  it('removes a chain from the arrangement that used it', () => {
+  it('clears a deleted chain out of the scenes that used it', () => {
     store().createSlot('A1')
     store().createChain('CH', 1)
-    store().placeChain(1, { bar: 0, chain: 'CH', len: 4 })
+    store().addScene('one')
+    store().setCell(0, 1, 'CH')
     store().removeChain('CH')
-    expect(project().arrangement.tracks['1']).toEqual([])
-  })
-
-  it('keeps a track"s placements sorted by bar', () => {
-    store().createSlot('A1')
-    store().createChain('CH', 1)
-    store().placeChain(1, { bar: 8, chain: 'CH', len: 4 })
-    store().placeChain(1, { bar: 0, chain: 'CH', len: 4 })
-    expect(project().arrangement.tracks['1'].map((placement) => placement.bar)).toEqual([0, 8])
+    expect(project().grid.scenes[0].cells['1']).toBeUndefined()
+    expect(validateProject(project()).ok).toBe(true)
   })
 
   it('reorders chain steps', () => {
@@ -98,17 +92,6 @@ describe('mutations', () => {
 })
 
 describe('rejection', () => {
-  it('rejects a placement that would overlap, leaving the document untouched', () => {
-    store().createSlot('A1')
-    store().createChain('CH', 1)
-    store().placeChain(1, { bar: 0, chain: 'CH', len: 8 })
-    const before = project()
-
-    expect(store().placeChain(1, { bar: 4, chain: 'CH', len: 4 })).toBe(false)
-    expect(project()).toBe(before)
-    expect(store().lastError).toMatch(/overlap/)
-  })
-
   it('rejects a chain moved to a track that does not exist', () => {
     store().createChain('CH', 1)
     const before = project()
@@ -137,15 +120,13 @@ describe('rejection', () => {
 })
 
 describe('track count', () => {
-  it('drops arrangement and scene data above the new bound', () => {
+  it('drops scene data above the new bound', () => {
     store().createSlot('A1')
     store().createChain('CH', 6)
-    store().placeChain(6, { bar: 0, chain: 'CH', len: 4 })
     store().addScene('one')
     store().setCell(0, 6, 'A1')
 
     expect(store().setMeta({ trackCount: 4 })).toBe(true)
-    expect(project().arrangement.tracks['6']).toBeUndefined()
     expect(project().grid.scenes[0].cells['6']).toBeUndefined()
     expect(project().chains.CH.track).toBe(4)
     expect(validateProject(project()).ok).toBe(true)
@@ -154,9 +135,10 @@ describe('track count', () => {
   it('leaves data alone when the count grows', () => {
     store().createSlot('A1')
     store().createChain('CH', 1)
-    store().placeChain(1, { bar: 0, chain: 'CH', len: 4 })
+    store().addScene('one')
+    store().setCell(0, 1, 'CH')
     store().setMeta({ trackCount: 16 })
-    expect(project().arrangement.tracks['1']).toHaveLength(1)
+    expect(project().grid.scenes[0].cells['1']).toBe('CH')
   })
 })
 

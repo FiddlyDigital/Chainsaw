@@ -1,16 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { demoProject, emptyProject, makeSlot } from '../model/defaults'
 import type { Project } from '../model/types'
-import {
-  arrangementTimeline,
-  chainTimeline,
-  refTimeline,
-  resolveTracks,
-  sceneCycles,
-  segmentAt,
-  songCycles,
-  tile,
-} from './timeline'
+import { chainTimeline, refTimeline, resolveTracks, sceneCycles, segmentAt } from './timeline'
 
 /** A minimal project with two slots of different lengths and one chain. */
 function fixture(): Project {
@@ -108,111 +99,23 @@ describe('sceneCycles', () => {
   })
 })
 
-describe('tile', () => {
-  const inner = { segments: [{ begin: 0, end: 1, slot: 'A', transpose: 0, gainOffset: 0 }], loop: 1 }
-
-  it('repeats to fill the span', () => {
-    expect(tile(inner, 4, 3).map((segment) => [segment.begin, segment.end])).toEqual([
-      [4, 5],
-      [5, 6],
-      [6, 7],
-    ])
-  })
-
-  it('clips a repetition that would overrun the span', () => {
-    const two = { segments: [{ begin: 0, end: 2, slot: 'B', transpose: 0, gainOffset: 0 }], loop: 2 }
-    expect(tile(two, 0, 3).map((segment) => [segment.begin, segment.end])).toEqual([
-      [0, 2],
-      [2, 3],
-    ])
-  })
-
-  it('produces nothing for an empty inner timeline', () => {
-    expect(tile({ segments: [], loop: 0 }, 0, 8)).toEqual([])
-  })
-})
-
-describe('arrangement', () => {
-  it('measures the song by its last placement', () => {
-    const project = fixture()
-    project.arrangement.tracks['1'] = [
-      { bar: 0, chain: 'CH', len: 4 },
-      { bar: 8, chain: 'CH', len: 4 },
-    ]
-    expect(songCycles(project)).toBe(12)
-  })
-
-  it('leaves gaps between placements silent', () => {
-    const project = fixture()
-    project.arrangement.tracks['1'] = [
-      { bar: 0, chain: 'CH', len: 4 },
-      { bar: 8, chain: 'CH', len: 4 },
-    ]
-    const timeline = arrangementTimeline(project, 1, songCycles(project))
-    const track = { timeline, offset: 0, source: 'arrangement' as const }
-    expect(segmentAt(track, 0)?.slot).toBe('A')
-    expect(segmentAt(track, 5)).toBeUndefined() // inside the gap
-    expect(segmentAt(track, 8)?.slot).toBe('A') // second placement
-  })
-
-  it('follows the timeline across the boundary between two chains', () => {
-    const project = fixture()
-    project.chains.OTHER = { track: 1, steps: [{ slot: 'C', repeat: 1, transpose: 0, gainOffset: 0 }] }
-    project.arrangement.tracks['1'] = [
-      { bar: 0, chain: 'CH', len: 4 },
-      { bar: 4, chain: 'OTHER', len: 2 },
-    ]
-    const track = {
-      timeline: arrangementTimeline(project, 1, songCycles(project)),
-      offset: 0,
-      source: 'arrangement' as const,
-    }
-    expect(segmentAt(track, 3)?.slot).toBe('B') // tail of the first chain
-    expect(segmentAt(track, 4)?.slot).toBe('C') // first cycle of the second
-    // OTHER is half a cycle long, so it repeats four times to fill its two bars
-    // rather than leaving the rest of the placement silent.
-    expect(segmentAt(track, 4.5)?.begin).toBe(4.5)
-    expect(segmentAt(track, 5.5)?.slot).toBe('C')
-    // The song is six cycles long, so cycle 6 is cycle 0 again.
-    expect(songCycles(project)).toBe(6)
-    expect(segmentAt(track, 6)?.slot).toBe('A')
-  })
-
-  it('loops the whole song, so tracks stay in phase with each other', () => {
-    const project = fixture()
-    project.arrangement.tracks['1'] = [{ bar: 0, chain: 'CH', len: 4 }]
-    project.arrangement.tracks['2'] = [{ bar: 0, chain: 'CH', len: 8 }]
-    const loop = songCycles(project)
-    expect(loop).toBe(8)
-    const one = { timeline: arrangementTimeline(project, 1, loop), offset: 0, source: 'arrangement' as const }
-    // Track 1's placement ends at cycle 4; the song does not loop until 8.
-    expect(segmentAt(one, 5)).toBeUndefined()
-    expect(segmentAt(one, 8)?.slot).toBe('A')
-  })
-})
-
 describe('resolveTracks', () => {
-  const project = (() => {
-    const base = fixture()
-    base.arrangement.tracks['1'] = [{ bar: 0, chain: 'CH', len: 4 }]
-    return base
-  })()
+  const project = fixture()
 
-  it('gives every track a timeline, arranged or empty', () => {
+  it('gives every track a timeline, silent until something is triggered', () => {
     const tracks = resolveTracks(project)
     expect(tracks.size).toBe(project.meta.trackCount)
-    expect(tracks.get(1)?.source).toBe('arrangement')
+    for (const track of tracks.values()) expect(track.timeline.segments).toEqual([])
+  })
+
+  it('plays a triggered clip on its own track and no other', () => {
+    const tracks = resolveTracks(project, { 1: { ref: 'C', startCycle: 9 } })
+    expect(tracks.get(1)?.ref).toBe('C')
+    expect(tracks.get(2)?.ref).toBeUndefined()
     expect(tracks.get(2)?.timeline.segments).toEqual([])
   })
 
-  it('lets a live override win on its own track and no other', () => {
-    const tracks = resolveTracks(project, { 1: { ref: 'C', startCycle: 9 } })
-    expect(tracks.get(1)?.source).toBe('live')
-    expect(tracks.get(1)?.ref).toBe('C')
-    expect(tracks.get(2)?.source).toBe('arrangement')
-  })
-
-  it('starts an override at its own first step, not part-way through', () => {
+  it('starts a clip at its own first step, not part-way through', () => {
     const tracks = resolveTracks(project, { 1: { ref: 'CH', startCycle: 9 } })
     const track = tracks.get(1)!
     expect(track.offset).toBe(9)
@@ -222,18 +125,25 @@ describe('resolveTracks', () => {
     expect(segmentAt(track, 13)?.slot).toBe('A')
   })
 
-  it('hands the track back to the arrangement when the override is dropped', () => {
-    expect(resolveTracks(project, {}).get(1)?.source).toBe('arrangement')
+  it('leaves the track silent once the clip is stopped', () => {
+    const track = resolveTracks(project, {}).get(1)!
+    expect(track.timeline.segments).toEqual([])
+    expect(segmentAt(track, 4)).toBeUndefined()
   })
 })
 
 describe('the demo project', () => {
-  it('places two chains back to back on one track', () => {
+  it('leaves nothing in it unreachable from the grid', () => {
+    // With the grid the only way to play anything, a slot or chain no scene
+    // references is dead weight in the file people first see.
     const project = demoProject()
-    const loop = songCycles(project)
-    const track = { timeline: arrangementTimeline(project, 1, loop), offset: 0, source: 'arrangement' as const }
-    expect(segmentAt(track, 7)?.slot).toBe('A2') // last bar of DRUMS_A
-    expect(segmentAt(track, 8)?.slot).toBe('A2') // first bar of DRUMS_B
-    expect(segmentAt(track, 8)?.gainOffset).toBe(0.1) // …with DRUMS_B's offset
+    const referenced = new Set(project.grid.scenes.flatMap((scene) => Object.values(scene.cells)))
+    const reachableSlots = new Set(
+      [...referenced].flatMap((ref) =>
+        project.slots[ref] ? [ref] : (project.chains[ref]?.steps.map((step) => step.slot) ?? []),
+      ),
+    )
+    expect([...Object.keys(project.chains)].filter((id) => !referenced.has(id))).toEqual([])
+    expect([...Object.keys(project.slots)].filter((id) => !reachableSlots.has(id))).toEqual([])
   })
 })

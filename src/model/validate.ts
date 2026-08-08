@@ -36,7 +36,7 @@ function shapeValidator(): ValidateFunction {
 /** Rule 1-7 from PRD §6, run against a document that already matches the schema. */
 export function validateReferences(project: Project): ValidationError[] {
   const errors: ValidationError[] = []
-  const { meta, instruments, slots, chains, arrangement, grid } = project
+  const { meta, instruments, slots, chains, grid } = project
 
   // Ids must be unique across the slot and chain namespaces, because a grid
   // cell holds one string and the resolver has to disambiguate it.
@@ -59,7 +59,7 @@ export function validateReferences(project: Project): ValidationError[] {
     }
   }
 
-  // 2. chain.steps[].slot must exist. 5. chain.track within bounds.
+  // 2. chain.steps[].slot must exist, and chain.track is within bounds.
   for (const [id, chain] of Object.entries(chains)) {
     if (chain.track < 1 || chain.track > meta.trackCount) {
       errors.push({
@@ -77,37 +77,7 @@ export function validateReferences(project: Project): ValidationError[] {
     })
   }
 
-  // 3. arrangement chain references. 5. track bounds. 6. no overlaps.
-  for (const [trackKey, placements] of Object.entries(arrangement.tracks)) {
-    const track = Number(trackKey)
-    if (!Number.isInteger(track) || track < 1 || track > meta.trackCount) {
-      errors.push({
-        path: `/arrangement/tracks/${trackKey}`,
-        message: `arrangement track ${trackKey} is outside 1-${meta.trackCount}`,
-      })
-      continue
-    }
-    const sorted = [...placements].sort((a, b) => a.bar - b.bar)
-    sorted.forEach((placement, i) => {
-      if (!(placement.chain in chains)) {
-        errors.push({
-          path: `/arrangement/tracks/${trackKey}/${i}`,
-          message: `arrangement on track ${trackKey} references unknown chain "${placement.chain}"`,
-        })
-      }
-      const previous = sorted[i - 1]
-      if (previous && previous.bar + previous.len > placement.bar) {
-        errors.push({
-          path: `/arrangement/tracks/${trackKey}/${i}`,
-          message:
-            `placements overlap on track ${trackKey}: "${previous.chain}" runs to bar ` +
-            `${previous.bar + previous.len} but "${placement.chain}" starts at bar ${placement.bar}`,
-        })
-      }
-    })
-  }
-
-  // 4. grid cells resolve to a slot or a chain. 5. track bounds.
+  // 3. grid cells resolve to a slot or a chain. 4. track bounds.
   grid.scenes.forEach((scene, sceneIndex) => {
     for (const [trackKey, ref] of Object.entries(scene.cells)) {
       const track = Number(trackKey)

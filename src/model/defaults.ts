@@ -56,16 +56,15 @@ export function emptyProject(name = 'untitled'): Project {
     instruments: {},
     slots: {},
     chains: {},
-    arrangement: { tracks: {} },
     grid: { scenes: [] },
   }
 }
 
 /**
  * The project the app opens on. It is deliberately small but exercises every
- * v1 feature: an instrument, slots of two different lengths, a chain with
- * repeats and a transposed step, two chains back to back on one track in the
- * arrangement, and two scenes to trigger over the top.
+ * v1 feature: two instruments, slots of two different lengths, chains with
+ * repeats and a transposed step, and four scenes that between them reference
+ * every slot and every chain — nothing in here is unreachable from the grid.
  */
 export function demoProject(): Project {
   const base = emptyProject('first light')
@@ -124,19 +123,10 @@ export function demoProject(): Project {
         steps: [{ slot: 'D1', repeat: 4, transpose: 0, gainOffset: 0 }],
       },
     },
-    arrangement: {
-      tracks: {
-        '1': [
-          { bar: 0, chain: 'DRUMS_A', len: 8 },
-          { bar: 8, chain: 'DRUMS_B', len: 8 },
-        ],
-        '2': [{ bar: 4, chain: 'HATS', len: 12 }],
-        '3': [{ bar: 0, chain: 'BASS', len: 16 }],
-      },
-    },
     grid: {
       scenes: [
         { name: 'intro', cells: { '1': 'A1', '3': 'C1' } },
+        { name: 'verse', cells: { '1': 'DRUMS_A', '2': 'HATS', '3': 'BASS' } },
         { name: 'drop', cells: { '1': 'DRUMS_B', '2': 'B2', '3': 'BASS_UP', '4': 'KEYS' } },
         { name: 'break', cells: { '2': 'B1', '4': 'D1' } },
       ],

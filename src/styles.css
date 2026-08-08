@@ -322,12 +322,10 @@ code {
   border-right: 1px solid var(--line);
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
+.stage-hint {
+  margin: 0;
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
-  align-items: center;
 }
 
 /* ── project panel ─────────────────────────────────────────── */
@@ -630,208 +628,6 @@ button.mini.mix.soloed {
   gap: 8px;
   padding: 6px 8px;
   border-top: 1px solid var(--line);
-}
-
-/* ── arrangement ───────────────────────────────────────────── */
-
-.arrangement {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.palette {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-}
-
-.palette-label {
-  color: var(--faint);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-/* The scrolling middle; the label and the zoom either side of it do not. */
-.palette-chips {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-
-.palette-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.palette-chips > * {
-  flex-shrink: 0;
-}
-
-.zoom {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  flex-shrink: 0;
-}
-
-.palette-label.armed {
-  color: var(--accent);
-}
-
-.chip {
-  display: inline-flex;
-  gap: 5px;
-  align-items: baseline;
-  font-size: 11px;
-}
-
-.chip em {
-  color: var(--faint);
-  font-style: normal;
-  font-size: 9px;
-}
-
-.timeline-scroll {
-  overflow: auto;
-  flex: 1;
-}
-
-.timeline {
-  position: relative;
-  padding-bottom: 12px;
-}
-
-.ruler,
-.track-row {
-  display: flex;
-  align-items: stretch;
-}
-
-.row-label {
-  /* Set by the view, which also does hit-testing with it. */
-  width: var(--label-width, 64px);
-  flex-shrink: 0;
-  color: var(--dim);
-  font-size: 11px;
-  padding: 3px 6px;
-  position: sticky;
-  left: 0;
-  background: var(--bg);
-  z-index: 1;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-
-.row-label em {
-  color: var(--accent);
-  font-style: normal;
-  font-size: 9px;
-}
-
-.row-label .track-mix {
-  margin-left: auto;
-}
-
-.ruler-bars {
-  display: flex;
-  border-bottom: 1px solid var(--line);
-}
-
-.tick {
-  font-size: 9px;
-  color: var(--faint);
-  border-left: 1px solid transparent;
-  padding-left: 2px;
-}
-
-.tick.major {
-  border-left-color: var(--line);
-  color: var(--dim);
-}
-
-.track-row {
-  height: 26px;
-  border-bottom: 1px solid #1a1e29;
-}
-
-.track-row.overridden .lane {
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 6px,
-    rgba(246, 109, 155, 0.06) 6px,
-    rgba(246, 109, 155, 0.06) 12px
-  );
-}
-
-.lane {
-  position: relative;
-  flex: 1;
-  cursor: crosshair;
-}
-
-.block {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: #24304a;
-  border: 1px solid #3b4c72;
-  font-size: 10px;
-  cursor: grab;
-  overflow: hidden;
-  touch-action: none;
-}
-
-.block:hover {
-  border-color: var(--accent);
-}
-
-.block-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.block-remove {
-  margin-left: auto;
-  padding: 0 3px;
-  border: none;
-  background: transparent;
-  color: var(--faint);
-}
-
-.block-resize {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: ew-resize;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15));
-}
-
-.playhead {
-  position: absolute;
-  top: 18px;
-  bottom: 0;
-  width: 1px;
-  background: var(--accent);
-  pointer-events: none;
 }
 
 /* ── editors ───────────────────────────────────────────────── */
@@ -1216,31 +1012,6 @@ button.mini.mix.soloed {
     color: var(--text);
   }
 
-  .track-row {
-    height: 34px;
-  }
-
-  /* A 6px edge is not a touch target. */
-  .block-resize {
-    width: 18px;
-  }
-
-  .block-resize,
-  .block-remove {
-    touch-action: none;
-  }
-
-  /* Keep the remove button clear of the widened resize handle, and let it take
-     the block's full height so there is something to actually hit. */
-  .block {
-    padding-right: 22px;
-  }
-
-  .block-remove {
-    align-self: stretch;
-    padding: 0 7px;
-  }
-
   /* This one sets its own 11px, which would have iOS zoom the page on focus. */
   .entry.instrument input {
     font-size: 16px;
@@ -1376,12 +1147,6 @@ button.mini.mix.soloed {
 
   .cell {
     width: 92px;
-  }
-
-  /* One row of chains rather than four wrapped ones; `.palette-chips` is
-     already the part that scrolls. */
-  .palette {
-    flex-wrap: nowrap;
   }
 
   .chain-editor {

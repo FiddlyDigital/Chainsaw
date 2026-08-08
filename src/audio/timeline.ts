@@ -8,7 +8,7 @@
  * `audio/patterns.ts` turns a timeline into something that makes noise.
  */
 import type { Project, Scene } from '../model/types'
-import { barToCycle, quantum, slotCycles } from './timing'
+import { quantum, slotCycles } from './timing'
 
 /** A slot together with the per-chain-step overrides that apply to this playing of it. */
 export interface SlotRef {
@@ -31,23 +31,18 @@ export interface Timeline {
 
 export const EMPTY_TIMELINE: Timeline = { segments: [], loop: 0 }
 
-export type TrackSource = 'arrangement' | 'live'
-
 export interface TrackTimeline {
   timeline: Timeline
   /**
-   * Absolute cycle at which this timeline's position 0 falls. The arrangement
-   * is anchored to 0; a live-triggered cell is anchored to the cycle it was
-   * triggered on, so it starts from its own first step rather than joining the
-   * song part-way through.
+   * Absolute cycle at which this timeline's position 0 falls: the cycle the
+   * clip was triggered on, so it starts from its own first step.
    */
   offset: number
-  source: TrackSource
-  /** The slot or chain id a live trigger referenced, for the UI to highlight. */
+  /** The slot or chain id that was triggered, for the UI to highlight. */
   ref?: string
 }
 
-/** An override placed on a track by a scene or cell trigger (PRD §7.5). */
+/** What a scene or cell trigger put on a track (PRD §7.5). */
 export interface LiveOverride {
   /** A slot id or a chain id. */
   ref: string
@@ -113,78 +108,23 @@ export function sceneCycles(project: Project, scene: Scene): number {
 }
 
 /**
- * Tile a timeline across `[start, start + span)`, clipping the last repetition
- * if it does not fit. A placement shorter than its chain plays the front of the
- * chain and then moves on, the same way a shortened LSDJ phrase does.
- */
-export function tile(inner: Timeline, start: number, span: number): Segment[] {
-  if (inner.loop <= 0 || span <= 0) return []
-  const out: Segment[] = []
-  const repeats = Math.ceil(span / inner.loop)
-  for (let r = 0; r < repeats; r += 1) {
-    const base = quantum(start + r * inner.loop)
-    for (const segment of inner.segments) {
-      const begin = quantum(base + segment.begin)
-      const end = quantum(Math.min(base + segment.end, start + span))
-      if (end <= begin) continue
-      out.push({ ...segment, begin, end })
-      if (end >= quantum(start + span)) break
-    }
-  }
-  return out
-}
-
-/** Total length of the arranged song in cycles; 0 when nothing is arranged. */
-export function songCycles(project: Project): number {
-  const { cyclesPerBar } = project.meta
-  let lastBar = 0
-  for (const placements of Object.values(project.arrangement.tracks)) {
-    for (const placement of placements) {
-      lastBar = Math.max(lastBar, placement.bar + placement.len)
-    }
-  }
-  return quantum(barToCycle(lastBar, cyclesPerBar))
-}
-
-/**
- * One track's arrangement, laid out over the full song length so that every
- * track loops together. Gaps between placements are simply absent from
- * `segments` and play as silence.
- */
-export function arrangementTimeline(project: Project, track: number, loop: number): Timeline {
-  const placements = project.arrangement.tracks[String(track)] ?? []
-  const { cyclesPerBar } = project.meta
-  const segments: Segment[] = []
-  for (const placement of [...placements].sort((a, b) => a.bar - b.bar)) {
-    const start = barToCycle(placement.bar, cyclesPerBar)
-    const span = barToCycle(placement.len, cyclesPerBar)
-    segments.push(...tile(chainTimeline(project, placement.chain), start, span))
-  }
-  return { segments, loop }
-}
-
-/**
- * What every track should be playing, given the arrangement and any live
- * overrides on top of it.
+ * What every track is playing.
  *
- * A live override wins over the arrangement on its track and on no other
- * (PRD §7.5); removing it hands the track back to the arrangement.
+ * The grid is the whole of it: a track plays whatever was last triggered on it
+ * and nothing otherwise. Each clip is anchored to the cycle it was fired on, so
+ * it starts from its own first step rather than joining something already in
+ * progress — there is no longer a written song for it to join.
  */
 export function resolveTracks(project: Project, overrides: Record<number, LiveOverride> = {}): Map<number, TrackTimeline> {
-  const loop = songCycles(project)
   const result = new Map<number, TrackTimeline>()
   for (let track = 1; track <= project.meta.trackCount; track += 1) {
     const override = overrides[track]
-    if (override) {
-      result.set(track, {
-        timeline: refTimeline(project, override.ref),
-        offset: override.startCycle,
-        source: 'live',
-        ref: override.ref,
-      })
-    } else {
-      result.set(track, { timeline: arrangementTimeline(project, track, loop), offset: 0, source: 'arrangement' })
-    }
+    result.set(
+      track,
+      override
+        ? { timeline: refTimeline(project, override.ref), offset: override.startCycle, ref: override.ref }
+        : { timeline: EMPTY_TIMELINE, offset: 0 },
+    )
   }
   return result
 }
@@ -206,11 +146,8 @@ export function referencesToSlot(project: Project, slotId: string): { chains: st
   return { chains, scenes }
 }
 
-/** Every arrangement track and scene that references a chain. */
-export function referencesToChain(project: Project, chainId: string): { tracks: number[]; scenes: string[] } {
-  const tracks = Object.entries(project.arrangement.tracks)
-    .filter(([, placements]) => placements.some((placement) => placement.chain === chainId))
-    .map(([track]) => Number(track))
+/** Every scene that references a chain. */
+export function referencesToChain(project: Project, chainId: string): { scenes: string[] } {
   const scenes = project.grid.scenes.filter((scene) => Object.values(scene.cells).includes(chainId)).map((scene) => scene.name)
-  return { tracks, scenes }
+  return { scenes }
 }

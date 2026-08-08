@@ -1,9 +1,8 @@
 /**
  * What the browser will tell us about how the app is being held.
  *
- * Layout is CSS's job and almost all of it stays there. These two things
- * cannot be: one is a number the arrangement does hit-testing with, and the
- * other is a measurement no media query exposes.
+ * Layout is CSS's job and almost all of it stays there. This is the part it
+ * cannot do: a measurement no media query exposes.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 
@@ -20,8 +19,8 @@ function subscribe(onChange: () => void): () => void {
  * True when the thing pointing at the screen is a finger.
  *
  * The stylesheet asks the same question for every size it changes. This is for
- * the one place a size is also a number in JavaScript: the arrangement resolves
- * a tap's x-coordinate to a bar, so its bar width has to be readable from both.
+ * the one place the answer decides whether something exists at all rather than
+ * how big it is: the editor's symbol row, which a keyboard has no use for.
  */
 export function useCoarsePointer(): boolean {
   return useSyncExternalStore(

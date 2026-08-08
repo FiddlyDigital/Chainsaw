@@ -135,7 +135,7 @@ export function useShortcuts({ onSave, onSaveAs, onOpen }: Shortcuts): void {
         return
       }
       if (event.key === 'Escape') {
-        runtime.returnToArrangement()
+        runtime.stopAll()
       }
     }
     window.addEventListener('keydown', handler)

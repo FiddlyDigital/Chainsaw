@@ -4,7 +4,6 @@ import { clearAutosave, readAutosave } from './persistence/autosave'
 import { openProject, saveAs, writeTo } from './persistence/files'
 import { useProject } from './store/project'
 import { useRuntime } from './store/runtime'
-import { ArrangementView } from './ui/ArrangementView'
 import { ChainEditor } from './ui/ChainEditor'
 import { EditorPanel } from './ui/EditorPanel'
 import { GridView } from './ui/GridView'
@@ -22,8 +21,6 @@ export default function App() {
 
   const load = useProject((state) => state.load)
   const markSaved = useProject((state) => state.markSaved)
-  const panel = useRuntime((state) => state.panel)
-  const setPanel = useRuntime((state) => state.setPanel)
   const pane = useRuntime((state) => state.pane)
   const setPane = useRuntime((state) => state.setPane)
   const editing = useRuntime((state) => state.editing)
@@ -83,7 +80,13 @@ export default function App() {
       if (!opened) return
       if (load(opened.project)) {
         handle.current = opened.handle
-        setNotice(`opened ${opened.project.meta.name}`)
+        // Say what an older file lost on the way in. Dropping part of someone's
+        // project without mentioning it is how they find out much later.
+        setNotice(
+          opened.dropped.length > 0
+            ? `opened ${opened.project.meta.name} — dropped ${opened.dropped.join('; ')}`
+            : `opened ${opened.project.meta.name}`,
+        )
       }
     } catch (error) {
       if ((error as DOMException)?.name === 'AbortError') return
@@ -117,16 +120,12 @@ export default function App() {
         <ProjectPanel />
 
         <div className="stage">
-          <nav className="tabs">
-            <button className={panel === 'grid' ? 'on' : ''} onClick={() => setPanel('grid')}>
-              grid
-            </button>
-            <button className={panel === 'arrangement' ? 'on' : ''} onClick={() => setPanel('arrangement')}>
-              arrangement
-            </button>
-            {!audioReady && <span className="hint">press play to start audio</span>}
-          </nav>
-          {panel === 'grid' ? <GridView /> : <ArrangementView />}
+          {!audioReady && (
+            <p className="hint stage-hint" role="status">
+              press play to start audio
+            </p>
+          )}
+          <GridView />
           {editingChain && <ChainEditor />}
         </div>
 
@@ -139,8 +138,8 @@ export default function App() {
           project
         </button>
         <button className={pane === 'stage' ? 'on' : ''} onClick={() => setPane('stage')} aria-current={pane === 'stage'}>
-          {panel}
-          {live && <span className="pane-mark live" title="A scene is overriding the arrangement" />}
+          grid
+          {live && <span className="pane-mark live" title="Something is playing in the grid" />}
         </button>
         <button className={pane === 'editor' ? 'on' : ''} onClick={() => setPane('editor')} aria-current={pane === 'editor'}>
           {editing ? `slot ${editing}` : 'scratch'}

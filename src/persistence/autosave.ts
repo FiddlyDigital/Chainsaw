@@ -7,6 +7,7 @@
  * so a bad autosave can never wedge the app on boot.
  */
 import type { Project } from '../model/types'
+import { migrate } from '../model/migrate'
 import { validateProject } from '../model/validate'
 
 export const AUTOSAVE_KEY = 'chainsaw.autosave.v1'
@@ -20,8 +21,11 @@ export function readAutosave(storage: Storage = localStorage): Project | null {
   }
   if (!raw) return null
   try {
-    const value = JSON.parse(raw)
-    return validateProject(value).ok ? (value as Project) : null
+    // Migrated like a file on disk: an autosave written by an older version
+    // carries fields this one has dropped, and a closed schema rejects the
+    // whole document over them rather than ignoring them.
+    const { document } = migrate(JSON.parse(raw))
+    return validateProject(document).ok ? (document as Project) : null
   } catch {
     return null
   }
