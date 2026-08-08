@@ -38,7 +38,7 @@ export function useCoarsePointer(): boolean {
  * layout viewport itself, so this lands on zero there and costs nothing. iOS
  * Safari does not: it shrinks the visual viewport only and leaves the layout
  * viewport full height, which puts everything anchored to the bottom of the
- * app — the pane switcher, the editor's symbol row — underneath the keyboard,
+ * app — the dock, the editor's symbol row — underneath the keyboard,
  * exactly when they are most wanted.
  */
 export function useKeyboardInset(): void {

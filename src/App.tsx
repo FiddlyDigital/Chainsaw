@@ -23,14 +23,15 @@ export default function App() {
 
   const load = useProject((state) => state.load)
   const markSaved = useProject((state) => state.markSaved)
-  const pane = useRuntime((state) => state.pane)
-  const setPane = useRuntime((state) => state.setPane)
+  const sheet = useRuntime((state) => state.sheet)
+  const setSheet = useRuntime((state) => state.setSheet)
+  const toggleSheet = useRuntime((state) => state.toggleSheet)
   const editing = useRuntime((state) => state.editing)
+  const editingPrebake = useRuntime((state) => state.editingPrebake)
   const editingChain = useRuntime((state) => state.editingChain)
   const audioReady = useRuntime((state) => state.status.audioReady)
-  // The pane switcher hides two thirds of the app at a time, so it carries the
-  // two things you would otherwise have to go and look for.
-  const live = useRuntime((state) => Object.keys(state.overrides).length > 0)
+  // A sheet covers most of the grid, so the bar that opens it says what is
+  // going on behind it.
   const failing = useRuntime((state) => Object.keys(state.status.errors).length > 0)
 
   const handle = useRef<FileSystemFileHandle | null>(null)
@@ -124,17 +125,18 @@ export default function App() {
     <div className="app">
       <TransportBar onSave={() => void doSave()} onSaveAs={() => void doSaveAs()} onOpen={() => void doOpen()} onNew={doNew} />
 
-      {/* `data-pane` is what the narrow layout reads to show one column at a
-          time. Every column stays mounted either way, so switching panes never
-          costs an editor its undo history or a scroll position. */}
-      {/* One boundary per pane rather than one around the lot: a slot whose
-          code breaks the editor's render should cost the editor, not the grid
-          that is currently playing and not the transport that stops it. */}
-      <main className="body" data-pane={pane}>
-        <ErrorBoundary where="project panel">
-          <ProjectPanel />
-        </ErrorBoundary>
-
+      {/*
+       * `data-sheet` is what the narrow layout reads. There the grid is the
+       * screen — it is the song, and a phone has room for one thing — and the
+       * two side panels come over it and go away again. Every panel stays
+       * mounted either way, so opening one never costs an editor its undo
+       * history or a scroll position.
+       *
+       * One boundary per panel rather than one around the lot: a slot whose
+       * code breaks the editor's render should cost the editor, not the grid
+       * that is currently playing and not the transport that stops it.
+       */}
+      <main className="body" data-sheet={sheet ?? ''}>
         <div className="stage">
           {!audioReady && (
             <p className="hint stage-hint" role="status">
@@ -151,23 +153,39 @@ export default function App() {
           )}
         </div>
 
-        <ErrorBoundary where="editor">
-          <EditorPanel />
-        </ErrorBoundary>
+        {/* Tapping the grid behind an open sheet puts it away, which is the
+            gesture people try first and the fastest way back to the clips. */}
+        <button className="scrim" onClick={() => setSheet(null)} aria-label="Close panel" tabIndex={sheet ? 0 : -1} />
+
+        <Sheet name="project" open={sheet === 'project'} onClose={() => setSheet(null)}>
+          <ErrorBoundary where="project panel">
+            <ProjectPanel />
+          </ErrorBoundary>
+        </Sheet>
+
+        <Sheet name="editor" open={sheet === 'editor'} onClose={() => setSheet(null)}>
+          <ErrorBoundary where="editor">
+            <EditorPanel />
+          </ErrorBoundary>
+        </Sheet>
       </main>
 
-      {/* Narrow screens only: the column switcher. */}
-      <nav className="pane-bar" aria-label="Panes">
-        <button className={pane === 'project' ? 'on' : ''} onClick={() => setPane('project')} aria-current={pane === 'project'}>
+      {/* Narrow screens only: what brings the two panels over the grid. */}
+      <nav className="dock" aria-label="Panels">
+        <button
+          className={sheet === 'project' ? 'on' : ''}
+          onClick={() => toggleSheet('project')}
+          aria-expanded={sheet === 'project'}
+        >
           project
         </button>
-        <button className={pane === 'stage' ? 'on' : ''} onClick={() => setPane('stage')} aria-current={pane === 'stage'}>
-          grid
-          {live && <span className="pane-mark live" title="Something is playing in the grid" />}
-        </button>
-        <button className={pane === 'editor' ? 'on' : ''} onClick={() => setPane('editor')} aria-current={pane === 'editor'}>
-          {editing ? `slot ${editing}` : 'scratch'}
-          {failing && <span className="pane-mark bad" title="A pattern failed to compile" />}
+        <button
+          className={sheet === 'editor' ? 'on' : ''}
+          onClick={() => toggleSheet('editor')}
+          aria-expanded={sheet === 'editor'}
+        >
+          {editingPrebake ? 'prebake' : editing ? `slot ${editing}` : 'scratch'}
+          {failing && <span className="dock-mark bad" title="A pattern failed to compile" />}
         </button>
       </nav>
 
@@ -182,6 +200,36 @@ export default function App() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * One of the two panels that slide over the grid on a narrow screen.
+ *
+ * `display: contents` above the breakpoint, so on a wide screen this element
+ * is not in the layout at all and the panel inside it is a column of the grid
+ * exactly as if the wrapper were not there — the same trick the transport's
+ * tray uses. Everything that makes it a sheet is in the narrow query.
+ */
+function Sheet({
+  name,
+  open,
+  onClose,
+  children,
+}: {
+  name: string
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className={`sheet sheet-${name} ${open ? 'open' : ''}`}>
+      {/* Looks like the grab handle the shape implies, and does what pulling
+          one down would do — a phone with no Escape key needs a target that is
+          not a 30px × in a corner. */}
+      <button className="sheet-handle" onClick={onClose} aria-label={`Close ${name}`} tabIndex={open ? 0 : -1} />
+      {children}
     </div>
   )
 }
